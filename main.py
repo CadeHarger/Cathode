@@ -8,6 +8,8 @@ from sentence_transformers import SentenceTransformer, util
 import numpy as np
 from dotenv import load_dotenv
 
+import time
+
 # --- 1. INITIALIZATION & CONFIGURATION ---
 def initialize_apis():
     """Load environment variables and configure API clients."""
@@ -27,7 +29,7 @@ def initialize_apis():
     genius.verbose = True
     
     # Load Sentence Transformer model for embeddings
-    model = SentenceTransformer('all-MiniLM-L6-v2')
+    model = SentenceTransformer('all-mpnet-base-v2') # 'all-MiniLM-L6-v2')
     
     return spotify, genius, model
 
@@ -61,7 +63,7 @@ def generate_spotify_queries(user_experience, gemini_model):
     """
     
     try:
-        response = gemini_model.generate_content(prompt)
+        response = gemini_model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.0))
         # Clean up the response to ensure it's valid JSON
         json_response = response.text.strip().replace("```json", "").replace("```", "")
         queries = json.loads(json_response).get("queries", [])
@@ -80,34 +82,36 @@ def get_songs_from_spotify(queries, sp_client, min_songs=5, max_playlist_songs=1
     song_ids = set() # Use a set to avoid duplicate songs
 
     for query in queries:
-        try:
+        #try:
             # Search for playlists that match the query
-            results = sp_client.search(q=query, type='playlist', limit=5)
-            if not results['playlists']['items']:
-                continue
+        results = sp_client.search(q=query, type='playlist', limit=5)
+        if not results['playlists']['items']:
+            continue
 
-            # Iterate through playlists to find one within the song count range
-            playlist_found = False
-            for playlist in results['playlists']['items']:
-                playlist_id = playlist['id']
-                playlist_details = sp_client.playlist(playlist_id, fields="tracks.total")
-                num_tracks = playlist_details['tracks']['total']
-                if min_songs <= num_tracks <= max_playlist_songs:
-                    playlist_found = True
-                    break
-            if not playlist_found:
+        # Iterate through playlists to find one within the song count range
+        playlist_found = False
+        for playlist in results['playlists']['items']:
+            if playlist is None:
                 continue
-            # Get tracks from the first playlist found within the range
-            playlist_tracks = sp_client.playlist_tracks(playlist_id)
-            for item in playlist_tracks['items']:
-                if len(song_list) >= max_songs:
-                    return song_list
-                track = item.get('track')
-                if track and track['id'] not in song_ids:
-                    song_ids.add(track['id'])
-                    song_list.append(track)
-        except Exception as e:
-            print(f"⚠️ Could not fetch songs for query '{query}': {e}")
+            playlist_id = playlist['id']
+            playlist_details = sp_client.playlist(playlist_id, fields="tracks.total")
+            num_tracks = playlist_details['tracks']['total']
+            if min_songs <= num_tracks <= max_playlist_songs:
+                playlist_found = True
+                break
+        if not playlist_found:
+            continue
+        # Get tracks from the first playlist found within the range
+        playlist_tracks = sp_client.playlist_tracks(playlist_id)
+        for item in playlist_tracks['items']:
+            if len(song_list) >= max_songs:
+                return song_list
+            track = item.get('track')
+            if track and track['id'] not in song_ids:
+                song_ids.add(track['id'])
+                song_list.append(track)
+        #except Exception as e:
+        #    print(f"⚠️ Could not fetch songs for query '{query}': {e}")
     
     print(f"✅ Fetched {len(song_list)} unique songs from Spotify.")
     # Limit the number of songs to process to keep runtime reasonable
@@ -120,6 +124,9 @@ def get_lyrics_and_embeddings(songs, genius_client, embedding_model):
     Fetches lyrics for each song and creates a vector embedding.
     """
     lyrics_data = []
+    lyrics_list = []
+    song_info_list = []
+
     for song in songs:
         try:
             # Search for the song lyrics on Genius
@@ -131,22 +138,32 @@ def get_lyrics_and_embeddings(songs, genius_client, embedding_model):
                 print(lyrics)
                 
                 if lyrics: # Ensure lyrics are not empty after cleaning
-                    embedding = embedding_model.encode(lyrics, convert_to_tensor=False)
-                    lyrics_data.append({
+                    lyrics_list.append(lyrics)
+                    song_info_list.append({
                         'name': song['name'],
                         'artists': song['artists'],
-                        'lyrics': lyrics,
-                        'embedding': embedding
+                        'lyrics': lyrics
                     })
                     print(f"  - Got lyrics for '{song['name']}'")
         except Exception as e:
             print(f"⚠️ Could not find lyrics for '{song['name']}' by {song['artists'][0]['name']}: {e}")
             
+    # Batch embedding
+    if lyrics_list:
+        start_time = time.time()
+        embeddings = embedding_model.encode(lyrics_list, convert_to_tensor=False)
+
+        for info, embedding in zip(song_info_list, embeddings):
+            info['embedding'] = embedding
+            lyrics_data.append(info)
+        end_time = time.time()
+        print(f"Time taken to embed {len(lyrics_list)} songs: {end_time - start_time} seconds")
+
     print(f"✅ Got lyrics and created embeddings for {len(lyrics_data)} songs.")
     return lyrics_data
 
 # --- 5. RANK SONGS USING COSINE SIMILARITY ---
-def rank_songs(user_experience, user_embedding, songs_with_lyrics, num_recommendations=7):
+def rank_songs(user_experience, user_embedding, songs_with_lyrics, num_recommendations=10):
     """
     Ranks songs based on the cosine similarity between the user's experience and the song lyrics.
     """
@@ -176,7 +193,7 @@ def main():
     user_experience = input("Please describe your recent life experience in a few sentences:\n> ")
     
     # Step 2: Generate search queries
-    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+    gemini_model = genai.GenerativeModel('gemini-2.5-flash')
     queries = generate_spotify_queries(user_experience, gemini_model)
     if not queries:
         print("Could not generate search queries. Exiting.")
@@ -199,12 +216,14 @@ def main():
     recommendations = rank_songs(user_experience, user_embedding, songs_with_lyrics)
 
     # Final Output
+    print('\n\n')
+    print("Prompt: ", user_experience)
     print("\n" + "="*50)
     print("✨ Here are your cathartic song recommendations: ✨")
     print("="*50)
     if recommendations:
         for i, (score, song) in enumerate(recommendations):
-            print(f"{i+1}. '{song['name']}' by {song['artists'][0]['name']} (Similarity: {score:.2f})")
+            print(f"{i+1}. '{song['name']}' by {song['artists'][0]['name']} \t(Similarity: {score:.2f})")
     else:
         print("Sorry, I couldn't find any suitable song recommendations for you.")
     print("="*50)

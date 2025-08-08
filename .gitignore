@@ -1,2 +1,5 @@
 /venv
+/data
 .env
+.cache
+.DS_Store
