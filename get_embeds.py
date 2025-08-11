@@ -36,19 +36,24 @@ def load_and_embed_lyrics():
     other_columns = [col for col in df.columns if col != 'lyrics']
     print(f"Other columns to preserve: {other_columns}")
     
-    # Load the sentence transformer model
+    # Load the sentence transformer model (MiniLM is much faster and smaller than MPNet)
     print("Loading sentence transformer model...")
     model = SentenceTransformer('all-MiniLM-L6-v2')
     
-    # Force model to use CUDA if available
+    # Choose best available device: CUDA > MPS (Apple Silicon) > CPU
+    target_device = 'cpu'
     if torch.cuda.is_available():
-        model = model.to('cuda')
-        print("Model moved to CUDA")
-    else:
-        print("Model using CPU")
+        target_device = 'cuda'
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        target_device = 'mps'
+    model = model.to(target_device)
+    print(f"Model device set to: {target_device}")
     
     # Verify device
-    print(f"Model device: {next(model.parameters()).device}")
+    try:
+        print(f"Model device: {model.device}")
+    except Exception:
+        pass
     
     # Calculate chunk size (25% of data each)
     total_rows = len(df)
@@ -76,21 +81,20 @@ def load_and_embed_lyrics():
         
         print(f"Embedding {len(chunk_lyrics)} lyrics...")
         
-        # Create progress bar for embedding
-        embeddings = []
-        batch_size = 3000
-        for i in tqdm(range(0, len(chunk_lyrics), batch_size), desc=f"Chunk {chunk_idx + 1}"):
-            batch = chunk_lyrics[i:i+batch_size]
-            batch_embeddings = model.encode(batch, show_progress_bar=True, device=next(model.parameters()).device)
-            embeddings.extend(batch_embeddings)
+    # Encode this chunk (normalized embeddings, efficient internal batching)
+    with torch.inference_mode():
+        embeddings_array = model.encode(
+            chunk_lyrics,
+            batch_size=128,
+            show_progress_bar=True,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
+    print(f"Embeddings shape: {embeddings_array.shape}")
         
-        # Convert to numpy array
-        embeddings_array = np.array(embeddings)
-        print(f"Embeddings shape: {embeddings_array.shape}")
-        
-        # Save embeddings
-        embeddings_filename = f'./data/embeddings_chunk_{chunk_idx + 1}.npy'
-        np.save(embeddings_filename, embeddings_array)
+    # Save embeddings (float16 to reduce disk/IO and speed up loading)
+    embeddings_filename = f'./data/embeddings_chunk_{chunk_idx + 1}.npy'
+    np.save(embeddings_filename, embeddings_array.astype(np.float16))
         print(f"Saved embeddings to {embeddings_filename}")
         
         # Save corresponding other columns
@@ -105,7 +109,7 @@ def load_and_embed_lyrics():
         print(f"Saved other columns to {pickle_filename}")
         
         # Clear memory
-        del embeddings, embeddings_array, other_data, chunk_lyrics
+        del embeddings_array, other_data, chunk_lyrics
         
         # Clear CUDA cache if using GPU
         if torch.cuda.is_available():
