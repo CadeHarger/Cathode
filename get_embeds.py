@@ -5,6 +5,9 @@ import os
 from tqdm import tqdm
 import pickle
 import torch
+import gc
+from concurrent.futures import ThreadPoolExecutor
+import psutil
 
 def load_and_embed_lyrics():
     """
@@ -21,21 +24,6 @@ def load_and_embed_lyrics():
     else:
         print("CUDA not available, will use CPU")
     
-    # Load the CSV file
-    print("Loading CSV file...")
-    df = pd.read_csv('./data/song_lyrics.csv')
-    print(f"Loaded {len(df)} rows")
-    
-    # Check if 'lyrics' column exists
-    if 'lyrics' not in df.columns:
-        print("Error: 'lyrics' column not found in CSV")
-        print(f"Available columns: {list(df.columns)}")
-        return
-    
-    # Get all columns except 'lyrics'
-    other_columns = [col for col in df.columns if col != 'lyrics']
-    print(f"Other columns to preserve: {other_columns}")
-    
     print("Loading sentence transformer model...")
     model = SentenceTransformer('all-mpnet-base-v2')
     
@@ -48,71 +36,132 @@ def load_and_embed_lyrics():
     model = model.to(target_device)
     print(f"Model device set to: {target_device}")
     
+    # Optimize model for inference
+    if target_device == 'cuda':
+        # Use half precision for faster inference on GPU
+        model = model.half()
+        print("Using half precision (float16) for faster GPU inference")
+        
+        # Compile model for better performance (PyTorch 2.0+)
+        try:
+            model = torch.compile(model, mode='max-autotune')
+            print("Model compiled with torch.compile for better performance")
+        except Exception as e:
+            print(f"Could not compile model: {e}")
+    
     # Verify device
     try:
         print(f"Model device: {model.device}")
     except Exception:
         pass
     
-    # Calculate chunk size (25% of data each)
-    total_rows = len(df)
-    chunk_size = total_rows // 4
-    print(f"Total rows: {total_rows}, Chunk size: {chunk_size}")
-    
-    # Process each chunk
-    for chunk_idx in range(4):
-        print(f"\nProcessing chunk {chunk_idx + 1}/4...")
-        
-        # Calculate start and end indices for this chunk
-        start_idx = chunk_idx * chunk_size
-        if chunk_idx == 3:  # Last chunk gets any remaining rows
-            end_idx = total_rows
+    # Determine optimal batch size based on available memory
+    optimal_batch_size = 128  # default
+    if target_device == 'cuda':
+        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        print(f"GPU memory: {gpu_memory_gb:.1f} GB")
+        if gpu_memory_gb >= 16:
+            optimal_batch_size = 512
+        elif gpu_memory_gb >= 8:
+            optimal_batch_size = 256
         else:
-            end_idx = (chunk_idx + 1) * chunk_size
+            optimal_batch_size = 128
+    elif target_device == 'mps':
+        optimal_batch_size = 256  # MPS can usually handle larger batches
+    
+    print(f"Using batch size: {optimal_batch_size}")
+    
+    # Process each chunk file
+    for chunk_idx in range(4):
+        chunk_num = chunk_idx + 1
+        chunk_file = f'./data/song_lyrics_chunk_{chunk_num}.csv'
         
-        print(f"Processing rows {start_idx} to {end_idx-1} ({end_idx - start_idx} rows)")
+        print(f"\nProcessing chunk {chunk_num}/4...")
+        print(f"Loading {chunk_file}...")
         
-        # Extract lyrics for this chunk
-        chunk_lyrics = df['lyrics'].iloc[start_idx:end_idx].tolist()
+        # Load only the lyrics column for faster loading
+        try:
+            # First, peek at the file to get column names
+            df_peek = pd.read_csv(chunk_file, nrows=1)
+            if 'lyrics' not in df_peek.columns:
+                print(f"Error: 'lyrics' column not found in {chunk_file}")
+                print(f"Available columns: {list(df_peek.columns)}")
+                continue
+            
+            # Load only lyrics column for embedding (much faster)
+            df_lyrics = pd.read_csv(chunk_file, usecols=['lyrics'], dtype={'lyrics': 'string'})
+            print(f"Loaded {len(df_lyrics)} lyrics from chunk {chunk_num}")
+            
+            # Load other columns separately only if we need to save them
+            other_columns = [col for col in df_peek.columns if col != 'lyrics']
+            if chunk_idx == 0:  # Only print this once
+                print(f"Other columns to preserve: {other_columns}")
+                
+        except FileNotFoundError:
+            print(f"Error: {chunk_file} not found. Skipping this chunk.")
+            continue
+        except Exception as e:
+            print(f"Error loading {chunk_file}: {e}. Skipping this chunk.")
+            continue
         
-        # Remove any None or NaN values
-        chunk_lyrics = [lyric for lyric in chunk_lyrics if pd.notna(lyric) and lyric is not None]
+        # Extract and clean lyrics
+        chunk_lyrics = df_lyrics['lyrics'].dropna().tolist()
+        # Filter out empty strings and None values
+        chunk_lyrics = [lyric for lyric in chunk_lyrics if lyric and str(lyric).strip()]
         
         print(f"Embedding {len(chunk_lyrics)} lyrics...")
         
-    # Encode this chunk (normalized embeddings, efficient internal batching)
-    with torch.inference_mode():
-        embeddings_array = model.encode(
-            chunk_lyrics,
-            batch_size=128,
-            show_progress_bar=True,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
-    print(f"Embeddings shape: {embeddings_array.shape}")
+        # Encode this chunk (normalized embeddings, efficient internal batching)
+        with torch.inference_mode():
+            embeddings_array = model.encode(
+                chunk_lyrics,
+                batch_size=optimal_batch_size,
+                show_progress_bar=True,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                device=target_device,
+            )
+        print(f"Embeddings shape: {embeddings_array.shape}")
+            
+        # Save embeddings (float16 to reduce disk/IO and speed up loading)
+        embeddings_filename = f'./data/embeddings_chunk_{chunk_num}.npy'
+        np.save(embeddings_filename, embeddings_array.astype(np.float16))
+        print(f"Saved embeddings to {embeddings_filename}")
         
-    # Save embeddings (float16 to reduce disk/IO and speed up loading)
-    embeddings_filename = f'./data/embeddings_chunk_{chunk_idx + 1}.npy'
-    np.save(embeddings_filename, embeddings_array.astype(np.float16))
-    print(f"Saved embeddings to {embeddings_filename}")
-    
-    # Save corresponding other columns
-    other_data = df[other_columns].iloc[start_idx:end_idx].copy()
-    other_filename = f'./data/other_columns_chunk_{chunk_idx + 1}.csv'
-    other_data.to_csv(other_filename, index=False)
-    print(f"Saved other columns to {other_filename}")
-    
-    # Also save as pickle for easier loading later
-    pickle_filename = f'./data/other_columns_chunk_{chunk_idx + 1}.pkl'
-    other_data.to_pickle(pickle_filename)
-    print(f"Saved other columns to {pickle_filename}")
-    
-    # Clear memory
-    del embeddings_array, other_data, chunk_lyrics
-    
-    # Clear CUDA cache if using GPU
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+        # Only save other columns if they don't already exist (avoid redundant I/O)
+        other_filename = f'./data/other_columns_chunk_{chunk_num}.csv'
+        pickle_filename = f'./data/other_columns_chunk_{chunk_num}.pkl'
+        
+        if not os.path.exists(pickle_filename):
+            # Load other columns only when needed
+            df_other = pd.read_csv(chunk_file, usecols=other_columns)
+            
+            # Save as pickle only (faster loading, smaller files)
+            df_other.to_pickle(pickle_filename)
+            print(f"Saved other columns to {pickle_filename}")
+            
+            # Clean up
+            del df_other
+        else:
+            print(f"Other columns file already exists: {pickle_filename}")
+        
+        # Clear memory more aggressively
+        del embeddings_array, chunk_lyrics, df_lyrics
+        gc.collect()  # Force garbage collection
+        
+        # Clear CUDA cache if using GPU
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()  # Ensure all operations complete
+        
+        # Print memory usage
+        if chunk_idx == 0:  # Only print once to avoid spam
+            ram_usage = psutil.virtual_memory().percent
+            print(f"RAM usage: {ram_usage:.1f}%")
+            if torch.cuda.is_available():
+                gpu_memory_used = torch.cuda.memory_allocated() / 1024**3
+                gpu_memory_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                print(f"GPU memory: {gpu_memory_used:.1f}/{gpu_memory_total:.1f} GB")
     
     print("\nAll chunks processed successfully!")
     print("Files created:")
