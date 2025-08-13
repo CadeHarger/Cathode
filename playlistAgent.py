@@ -29,7 +29,7 @@ def initialize_apis():
     genius.verbose = True
     
     # Load Sentence Transformer model for embeddings
-    model = SentenceTransformer('all-mpnet-base-v2') # 'all-MiniLM-L6-v2')
+    model = SentenceTransformer('all-mpnet-base-v2') 
     
     return spotify, genius, model
 

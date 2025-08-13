@@ -74,7 +74,7 @@ def _choose_model_for_dim(emb_dim: Optional[int], requested_model: str) -> str:
     """Pick a SentenceTransformer model that matches the stored embedding dimension when possible."""
     if emb_dim is None:
         return requested_model
-    if emb_dim == 384:
+    if emb_dim == 384: # Should never happen
         return "all-MiniLM-L6-v2"
     if emb_dim == 768:
         return "all-mpnet-base-v2"

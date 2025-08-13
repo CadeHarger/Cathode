@@ -36,9 +36,8 @@ def load_and_embed_lyrics():
     other_columns = [col for col in df.columns if col != 'lyrics']
     print(f"Other columns to preserve: {other_columns}")
     
-    # Load the sentence transformer model (MiniLM is much faster and smaller than MPNet)
     print("Loading sentence transformer model...")
-    model = SentenceTransformer('all-MiniLM-L6-v2')
+    model = SentenceTransformer('all-mpnet-base-v2')
     
     # Choose best available device: CUDA > MPS (Apple Silicon) > CPU
     target_device = 'cpu'
@@ -95,25 +94,25 @@ def load_and_embed_lyrics():
     # Save embeddings (float16 to reduce disk/IO and speed up loading)
     embeddings_filename = f'./data/embeddings_chunk_{chunk_idx + 1}.npy'
     np.save(embeddings_filename, embeddings_array.astype(np.float16))
-        print(f"Saved embeddings to {embeddings_filename}")
-        
-        # Save corresponding other columns
-        other_data = df[other_columns].iloc[start_idx:end_idx].copy()
-        other_filename = f'./data/other_columns_chunk_{chunk_idx + 1}.csv'
-        other_data.to_csv(other_filename, index=False)
-        print(f"Saved other columns to {other_filename}")
-        
-        # Also save as pickle for easier loading later
-        pickle_filename = f'./data/other_columns_chunk_{chunk_idx + 1}.pkl'
-        other_data.to_pickle(pickle_filename)
-        print(f"Saved other columns to {pickle_filename}")
-        
-        # Clear memory
-        del embeddings_array, other_data, chunk_lyrics
-        
-        # Clear CUDA cache if using GPU
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    print(f"Saved embeddings to {embeddings_filename}")
+    
+    # Save corresponding other columns
+    other_data = df[other_columns].iloc[start_idx:end_idx].copy()
+    other_filename = f'./data/other_columns_chunk_{chunk_idx + 1}.csv'
+    other_data.to_csv(other_filename, index=False)
+    print(f"Saved other columns to {other_filename}")
+    
+    # Also save as pickle for easier loading later
+    pickle_filename = f'./data/other_columns_chunk_{chunk_idx + 1}.pkl'
+    other_data.to_pickle(pickle_filename)
+    print(f"Saved other columns to {pickle_filename}")
+    
+    # Clear memory
+    del embeddings_array, other_data, chunk_lyrics
+    
+    # Clear CUDA cache if using GPU
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
     print("\nAll chunks processed successfully!")
     print("Files created:")

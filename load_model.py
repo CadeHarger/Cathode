@@ -16,7 +16,7 @@ def load_finetuned_model(model_path: Optional[str] = None) -> SentenceTransforme
     if model_path is None:
         # Default to the epoch 1 model from training
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(current_dir, "mpnet_lyrics_lora", "epoch_1")
+        model_path = os.path.join(current_dir, "models", "mpnet_lyrics_lora", "epoch_1")
     
     if not os.path.exists(model_path):
         raise FileNotFoundError(
@@ -34,7 +34,12 @@ def load_finetuned_model(model_path: Optional[str] = None) -> SentenceTransforme
         
         # Verify the model can encode text
         test_embedding = model.encode("test", convert_to_tensor=False)
-        print(f"   Embedding dimension: {test_embedding.shape[1]}")
+        # Handle both 1D and 2D embedding shapes
+        if test_embedding.ndim == 1:
+            embedding_dim = test_embedding.shape[0]
+        else:
+            embedding_dim = test_embedding.shape[1]
+        print(f"   Embedding dimension: {embedding_dim}")
         
         return model
         
@@ -55,8 +60,13 @@ def get_model_info(model: SentenceTransformer) -> dict:
     try:
         # Test encoding to get dimension
         test_embedding = model.encode("test", convert_to_tensor=False)
+        # Handle both 1D and 2D embedding shapes
+        if test_embedding.ndim == 1:
+            embedding_dim = test_embedding.shape[0]
+        else:
+            embedding_dim = test_embedding.shape[1]
         return {
-            "embedding_dimension": test_embedding.shape[1],
+            "embedding_dimension": embedding_dim,
             "model_type": type(model).__name__,
             "is_finetuned": True
         }
@@ -77,7 +87,7 @@ def is_finetuned_model_available() -> bool:
     """
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(current_dir, "mpnet_lyrics_lora", "epoch_1")
+        model_path = os.path.join(current_dir, "models", "mpnet_lyrics_lora", "epoch_1")
         return os.path.exists(model_path)
     except Exception:
         return False
@@ -92,7 +102,7 @@ def get_finetuned_model_path() -> Optional[str]:
     """
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(current_dir, "mpnet_lyrics_lora", "epoch_1")
+        model_path = os.path.join(current_dir, "models", "mpnet_lyrics_lora", "epoch_1")
         if os.path.exists(model_path):
             return model_path
         return None
@@ -119,5 +129,5 @@ if __name__ == "__main__":
             print(f"❌ Error loading model: {e}")
     else:
         print("❌ Finetuned model not found")
-        print("   Expected location: mpnet_lyrics_lora/epoch_1/")
+        print("   Expected location: models/mpnet_lyrics_lora/epoch_1/")
         print("   Please run the training script first to generate the finetuned model")
