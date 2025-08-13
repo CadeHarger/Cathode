@@ -13,7 +13,7 @@ import time
 # 4. Perform vector search on the filtered songs.
 # 5. Return the top 7 songs. 
 
-from vectorSearch import VectorSearcher
+from vector_search import VectorSearcher
 
 def initialize_apis():
     """Load environment variables and configure API clients."""
@@ -119,6 +119,7 @@ def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, 
 
     # Step 1: Initialize APIs and models
     spotify = initialize_apis()
+    print("🔍 Initializing vector search with finetuned model...")
     vector_searcher = VectorSearcher()
 
     # Step 2: Generate search queries

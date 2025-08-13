@@ -12,6 +12,8 @@ from torch.utils.data import DataLoader
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
 from tqdm.auto import tqdm
+from multiprocessing import Pool
+import time
 
 # -------------------------
 # Config / hyperparameters
@@ -24,7 +26,7 @@ DATA_DIR = _get_data_dir()  # directory with lyric CSV/PKL files
 MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
 OUT_DIR = "mpnet_lyrics_lora"
 EPOCHS = 3
-TRAIN_BATCH_SIZE = 16            # per device batch size
+TRAIN_BATCH_SIZE = 18            # per device batch size
 GRAD_ACCUM_STEPS = 2            # gradient accumulation -> effective batch = TRAIN_BATCH_SIZE * GRAD_ACCUM_STEPS
 LR = 2e-5
 FP16 = True                      # use mixed precision
@@ -94,7 +96,8 @@ def _load_lyrics_chunk(path: str) -> pd.DataFrame:
     if path.endswith(".pkl"):
         df = pd.read_pickle(path)
     else:
-        df = pd.read_csv(path)
+        # Use memory mapping for faster CSV loading
+        df = pd.read_csv(path, memory_map=True, engine='c')
     return _normalize_lyrics_columns(df, source=path)
 
 
@@ -128,21 +131,34 @@ def _chunk_into_passages(lyrics: str, max_len_chars: int = 800) -> List[str]:
     return final
 
 
-def build_positive_pairs_from_chunk(df: pd.DataFrame, samples_per_song: int = 2) -> Iterator[InputExample]:
-    """For each song, produce InputExample pairs (passage_a, passage_b) where both are from same song."""
+def build_positive_pairs_from_chunk(df: pd.DataFrame, samples_per_song: int = 2) -> List[InputExample]:
+    """Process all songs at once instead of row by row - vectorized approach."""
+    examples = []
+    
+    # Split all lyrics at once - vectorized operation
+    df['passages'] = df['lyrics'].astype(str).apply(_chunk_into_passages)
+    
+    # Filter songs with enough passages
+    df = df[df['passages'].apply(len) >= 2]
+    
+    print(f"    Processing {len(df)} songs with sufficient passages")
+    
+    # Generate pairs for all songs simultaneously
     for _, row in df.iterrows():
-        lyrics = str(row["lyrics"])
-        passages = _chunk_into_passages(lyrics)
-        if len(passages) < 2:
-            continue
-        # sample random pairs from same song
+        passages = row['passages']
+        # Generate multiple pairs per song
         for _ in range(samples_per_song):
-            a, b = random.sample(passages, 2)
-            yield InputExample(texts=[a, b])
+            if len(passages) >= 2:
+                a, b = random.sample(passages, 2)
+                examples.append(InputExample(texts=[a, b]))
+    
+    print(f"    Generated {len(examples)} positive pairs")
+    return examples
 
 
-def build_synthetic_query_pairs(df: pd.DataFrame, samples_per_song: int = 1) -> Iterator[InputExample]:
-    """Create (synthetic_query, passage) pairs by templating/paraphrasing a passage into a query. This is cheap and deterministic."""
+def build_synthetic_query_pairs(df: pd.DataFrame, samples_per_song: int = 1) -> List[InputExample]:
+    """Create (synthetic_query, passage) pairs - vectorized approach."""
+    examples = []
     templates = [
         "I'm going through: {}",
         "This sounds like: {}",
@@ -150,72 +166,113 @@ def build_synthetic_query_pairs(df: pd.DataFrame, samples_per_song: int = 1) -> 
         "Relates to: {}",
         "A story about: {}"
     ]
+    
+    # Use the passages already computed in build_positive_pairs_from_chunk
+    if 'passages' not in df.columns:
+        df['passages'] = df['lyrics'].astype(str).apply(_chunk_into_passages)
+    
+    # Filter songs with passages
+    df = df[df['passages'].apply(len) > 0]
+    
+    print(f"    Processing {len(df)} songs for synthetic queries")
+    
     for _, row in df.iterrows():
-        lyrics = str(row["lyrics"])
-        passages = _chunk_into_passages(lyrics)
-        if not passages:
-            continue
+        passages = row['passages']
         for _ in range(samples_per_song):
-            passage = random.choice(passages)
-            # create a short summary-ish seed: take first sentence or 20 words
-            words = passage.split()
-            seed = " ".join(words[:20])
-            template = random.choice(templates)
-            synthetic_query = template.format(seed)
-            yield InputExample(texts=[synthetic_query, passage])
+            if passages:
+                passage = random.choice(passages)
+                # create a short summary-ish seed: take first sentence or 20 words
+                words = passage.split()
+                seed = " ".join(words[:20])
+                template = random.choice(templates)
+                synthetic_query = template.format(seed)
+                examples.append(InputExample(texts=[synthetic_query, passage]))
+    
+    print(f"    Generated {len(examples)} synthetic queries")
+    return examples
+
+
+def parallel_load_chunks(file_paths, n_workers=4):
+    """Load chunks in parallel using multiprocessing."""
+    print(f"Loading {len(file_paths)} chunks in parallel using {n_workers} workers...")
+    start_time = time.time()
+    
+    with Pool(n_workers) as pool:
+        results = pool.map(_load_lyrics_chunk, file_paths)
+    
+    # Filter out None results (failed loads)
+    loaded_chunks = [r for r in results if r is not None]
+    load_time = time.time() - start_time
+    print(f"Loaded {len(loaded_chunks)} chunks in {load_time:.2f} seconds")
+    
+    return loaded_chunks
+
+
+def batch_process_chunks(chunks, total_samples, samples_per_song=1):
+    """Process multiple chunks efficiently to generate target number of samples."""
+    examples = []
+    
+    # Calculate how many samples we need per chunk to reach our target
+    # Each song can generate multiple examples (positive pairs + synthetic queries)
+    samples_per_chunk = total_samples // len(chunks)
+    print(f"Target: {total_samples} samples, {len(chunks)} chunks, ~{samples_per_chunk} samples per chunk")
+    
+    for chunk_idx, chunk in enumerate(chunks):
+        print(f"Processing chunk {chunk_idx + 1}/{len(chunks)} (shape: {chunk.shape})")
+        
+        # Calculate how many songs we need to sample from this chunk
+        # We need enough songs to generate samples_per_chunk examples
+        # Each song generates (samples_per_song * 2) examples (positive + synthetic)
+        examples_per_song = samples_per_song * 2  # positive + synthetic
+        songs_needed = max(100, samples_per_chunk // examples_per_song)
+        
+        # Sample songs from this chunk
+        sampled = chunk.sample(min(songs_needed, len(chunk)))
+        print(f"  Sampled {len(sampled)} songs from chunk")
+        
+        # Generate examples from this chunk
+        positive_examples = build_positive_pairs_from_chunk(sampled, samples_per_song)
+        synthetic_examples = build_synthetic_query_pairs(sampled, samples_per_song)
+        
+        chunk_examples = positive_examples + synthetic_examples
+        examples.extend(chunk_examples)
+        
+        print(f"  Generated {len(chunk_examples)} examples from chunk (total: {len(examples)})")
+        
+        # If we have enough samples, we can stop early
+        if len(examples) >= total_samples:
+            print(f"  Reached target of {total_samples} samples, stopping early")
+            break
+    
+    # Ensure we don't exceed the target
+    final_examples = examples[:total_samples]
+    print(f"Final sample count: {len(final_examples)}")
+    
+    return final_examples
 
 
 def streaming_training_examples(data_dir: str, total_samples: int) -> List[InputExample]:
-    """Sample training pairs from data_dir across chunks to build a single epoch's examples.
-       We randomly walk chunks to produce diversity without loading everything at once.
-    """
+    """Optimized sampling using batch processing and parallel loading."""
     files = _find_lyric_chunks(data_dir)
     if not files:
         raise FileNotFoundError(
             "No data files found. Expected 'song_lyrics_chunk_{n}.csv' (or .pkl) under the data directory."
         )
-    examples = []
-    # To avoid loading entire dataset, loop until we collect enough samples
-    pbar = tqdm(total=total_samples, desc="Sampling training pairs")
-    file_cycle = list(files)
-    fidx = 0
-    attempts_without_progress = 0
-    last_examples_count = 0
-    while len(examples) < total_samples:
-        path = file_cycle[fidx % len(file_cycle)]
-        fidx += 1
-        try:
-            df = _load_lyrics_chunk(path)
-        except Exception as e:
-            print(f"Skipping {path} due to error: {e}")
-            continue
-        # from this chunk, sample some songs
-        sample_song_count = min(200, max(10, total_samples // (max(len(files), 1) * 4)))
-        sampled = df.sample(min(sample_song_count, len(df)))
-        # generate positives and synthetic queries
-        for ex in build_positive_pairs_from_chunk(sampled, samples_per_song=1):
-            examples.append(ex)
-            pbar.update(1)
-            if len(examples) >= total_samples:
-                break
-        if len(examples) >= total_samples:
-            break
-        for ex in build_synthetic_query_pairs(sampled, samples_per_song=1):
-            examples.append(ex)
-            pbar.update(1)
-            if len(examples) >= total_samples:
-                break
-
-        # progress guard: if we loop through all files without adding examples, abort
-        if fidx % max(len(file_cycle), 1) == 0:
-            if len(examples) == last_examples_count:
-                attempts_without_progress += 1
-            else:
-                attempts_without_progress = 0
-                last_examples_count = len(examples)
-            if attempts_without_progress >= 2:
-                raise FileNotFoundError("No usable chunks with a 'lyrics' column were found in the expected files: other_columns_chunk_{n}.csv/pkl")
-    pbar.close()
+    
+    print(f"Found {len(files)} data files")
+    
+    # Load chunks in parallel
+    chunks = parallel_load_chunks(files, n_workers=min(4, len(files)))
+    
+    if not chunks:
+        raise FileNotFoundError("No usable chunks were loaded successfully")
+    
+    print(f"Processing {len(chunks)} loaded chunks...")
+    
+    # Process chunks in batches
+    examples = batch_process_chunks(chunks, total_samples)
+    
+    print(f"Generated {len(examples)} training examples")
     random.shuffle(examples)
     return examples
 
@@ -265,6 +322,14 @@ def prepare_model_with_lora(base_model_name: str, lora_r: int = 8, lora_alpha: i
 
     # Move the model to device (keeps HF wrapped module on same device)
     model.to(device)
+    
+    # Ensure the PEFT model is also on the correct device
+    wrapped.to(device)
+    
+    # Verify device placement
+    print(f"Model device: {next(model.parameters()).device}")
+    print(f"PEFT model device: {next(wrapped.parameters()).device}")
+    
     return model
 
 
@@ -278,12 +343,22 @@ def train():
 
     for epoch in range(EPOCHS):
         print(f"\n==== EPOCH {epoch+1}/{EPOCHS} ====")
+        
+        # Verify model is still on GPU before training
+        print(f"Model device before training: {next(model.parameters()).device}")
+        if torch.cuda.is_available():
+            print(f"CUDA memory allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+            print(f"CUDA memory cached: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+        
         # sample/generate examples for this epoch
         examples = streaming_training_examples(DATA_DIR, SAMPLES_PER_EPOCH)
         print(f"Collected {len(examples)} training examples")
 
         train_dataloader = DataLoader(examples, shuffle=True, batch_size=TRAIN_BATCH_SIZE, drop_last=False)
         train_loss = losses.MultipleNegativesRankingLoss(model)
+        
+        # Verify that the loss function is on the correct device
+        print(f"Loss function device: {next(train_loss.parameters()).device if hasattr(train_loss, 'parameters') else 'N/A'}")
 
         # sentence-transformers .fit wraps training; pass parameters to control optimizer
         model.fit(

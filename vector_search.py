@@ -8,6 +8,7 @@ from sentence_transformers import SentenceTransformer
 import time
 from functools import lru_cache
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from load_model import load_finetuned_model
 
 
 # Source: 
@@ -52,6 +53,9 @@ def _normalize_vector(vector: np.ndarray) -> np.ndarray:
 
 @lru_cache(maxsize=2)
 def _get_encoder(model_name: str) -> SentenceTransformer:
+    """Get the encoder model. If model_name is 'finetuned', load the finetuned model."""
+    if model_name == "finetuned":
+        return load_finetuned_model()
     return SentenceTransformer(model_name)
 
 
@@ -180,14 +184,27 @@ def _chunk_topk(
 
 
 class VectorSearcher:
-    def __init__(self, data_dir: Optional[str] = None, model_name: str = "all-mpnet-base-v2"):
+    def __init__(self, data_dir: Optional[str] = None, model_name: str = "finetuned"):
         self.data_dir = data_dir or _get_data_dir()
         if not os.path.isdir(self.data_dir):
             raise FileNotFoundError(f"Data directory not found: {self.data_dir}")
 
-        inferred_dim = _infer_embeddings_dim(self.data_dir)
-        self.model_name = _choose_model_for_dim(inferred_dim, model_name)
-        self.model = _get_encoder(self.model_name)
+        # Use finetuned model by default, but allow fallback to base model if needed
+        if model_name == "finetuned":
+            try:
+                self.model = load_finetuned_model()
+                self.model_name = "finetuned"
+                print("✅ Using finetuned model for vector search")
+            except Exception as e:
+                print(f"⚠️ Failed to load finetuned model: {e}")
+                print("🔄 Falling back to base model")
+                inferred_dim = _infer_embeddings_dim(self.data_dir)
+                self.model_name = _choose_model_for_dim(inferred_dim, "all-mpnet-base-v2")
+                self.model = _get_encoder(self.model_name)
+        else:
+            inferred_dim = _infer_embeddings_dim(self.data_dir)
+            self.model_name = _choose_model_for_dim(inferred_dim, model_name)
+            self.model = _get_encoder(self.model_name)
         
         self.all_metadata = self._load_all_metadata()
         if not self.all_metadata.empty:
