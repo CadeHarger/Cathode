@@ -4,7 +4,7 @@ import google.generativeai as genai
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from dotenv import load_dotenv
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import time
 import asyncio
 
@@ -223,7 +223,7 @@ def get_songs_from_spotify(queries: List[str], sp_client: spotipy.Spotify, n_pla
     return song_list
 
 
-def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, n_playlists: int = 10):
+def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, n_playlists: int = 10, genre_filter: Optional[str] = None):
     """
     Main function to run the entire recommendation pipeline.
     """
@@ -256,6 +256,17 @@ def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, 
         return
     
     print(f"Found {len(songs_in_dataset)} songs in the local dataset.")
+
+    # Apply genre filter if provided
+    if genre_filter:
+        if 'genre' in songs_in_dataset.columns:
+            songs_in_dataset = songs_in_dataset[songs_in_dataset['genre'].str.lower() == genre_filter.lower()]
+            if songs_in_dataset.empty:
+                print(f"No songs found for the genre '{genre_filter}'. Exiting.")
+                return
+            print(f"Filtered down to {len(songs_in_dataset)} songs for the genre '{genre_filter}'.")
+        else:
+            print("Warning: 'genre' column not found in the dataset. Cannot apply genre filter.")
 
     # Step 5: Perform vector search to get top candidates for LLM re-ranking
     print(f"🔍 Getting top {LLM_RERANK_COUNT} candidates from vector search...")
@@ -292,5 +303,11 @@ def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, 
 
 if __name__ == "__main__":
     user_query = input("Please describe your recent life experience in a few sentences:\n> ").strip()
+    
+    # Optional: Ask for genre
+    genre_input = input("Enter a genre to filter by (e.g., pop, rock, rap) or press Enter to skip:\n> ").strip()
+    if not genre_input:
+        genre_input = None # Unfiltered
+
     if user_query:
-        run_hybrid_search(user_query)
+        run_hybrid_search(user_query, genre_filter=genre_input)
