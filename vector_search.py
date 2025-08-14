@@ -15,6 +15,10 @@ from load_model import load_finetuned_model
 # https://www.kaggle.com/datasets/carlosgdcj/genius-song-lyrics-with-language-information
 
 
+def getViewsMultiplier(views: np.ndarray) -> np.ndarray:
+    return 1.0 + ((np.log10(views) - 3.0) * 0.1)
+
+
 def _get_data_dir():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(current_dir, "data")
@@ -136,7 +140,7 @@ def _chunk_topk(
     # Multiplier boosts score for high-view songs.
     # A song with 10k views gets a 1.0x multiplier.
     # A song with 1M views (10^6) gets a 1.8x multiplier.
-    views_multiplier = 1.0 + (np.log10(views) - 3.0) * 0.2
+    views_multiplier = getViewsMultiplier(views)
     # Set a floor for the multiplier to avoid overly penalizing low-view songs.
     np.maximum(views_multiplier, 0.1, out=views_multiplier)
 
