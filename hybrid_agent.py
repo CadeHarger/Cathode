@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import google.generativeai as genai
 import spotipy
@@ -38,6 +39,53 @@ def combine_scores(vector_score: float, llm_score: int) -> float:
     # Weighted combination
     combined = (VECTOR_WEIGHT * vector_score) + (LLM_WEIGHT * normalized_llm_score)
     return combined
+
+
+async def score_debug_songs(user_experience: str, debug_found_songs: List[Tuple[str, str]], 
+                           songs_in_dataset, vector_searcher, gemini_model) -> List[Tuple[str, str, float, int, float, float]]:
+    """
+    Score debug songs using both vector search and LLM reranking.
+    
+    Returns:
+        List of (title, artist, vector_score, llm_score, combined_score, views)
+    """
+    if not debug_found_songs:
+        return []
+    
+    print(f"\n🔍 Scoring {len(debug_found_songs)} debug songs...")
+    
+    # Create a DataFrame with just the debug songs
+    debug_rows = []
+    for title, artist in debug_found_songs:
+        matches = songs_in_dataset[(songs_in_dataset['title'] == title) & (songs_in_dataset['artist'] == artist)]
+        if not matches.empty:
+            debug_rows.append(matches.iloc[0])
+    
+    if not debug_rows:
+        return []
+    
+    import pandas as pd
+    debug_df = pd.DataFrame(debug_rows)
+    
+    # Get vector scores for debug songs
+    vector_results = vector_searcher.search(user_experience, top_k=len(debug_df), candidates=debug_df)
+    
+    # Get LLM scores using the same reranking function
+    reranked_results = await rerank_with_llm(user_experience, vector_results, debug_df, gemini_model)
+    
+    # Format results
+    scored_debug_songs = []
+    for combined_score, title, artist, views, llm_score in reranked_results:
+        # Find the original vector score
+        vector_score = None
+        for v_score, v_title, v_artist, v_views in vector_results:
+            if v_title == title and v_artist == artist:
+                vector_score = v_score
+                break
+        
+        scored_debug_songs.append((title, artist, vector_score, llm_score, combined_score, views))
+    
+    return scored_debug_songs
 
 async def rerank_with_llm(user_experience: str, vector_results: List[Tuple[float, str, str, float]], 
                    songs_in_dataset, gemini_model) -> List[Tuple[float, str, str, float, int]]:
@@ -126,14 +174,18 @@ def initialize_apis():
     
     return spotify
 
-def generate_spotify_queries(user_experience, gemini_model, n_queries):
+def generate_spotify_queries(user_experience, genres, gemini_model, n_queries):
     """
     Uses the Gemini LLM to generate n Spotify playlist search queries based on the user's experience.
     """
     # This prompt is engineered to ask for a specific JSON output format.
     prompt = f"""
     <BEGIN INSTRUCTIONS>
-    Based on the following life experience, generate a JSON object containing a single key "queries" which holds a list of {n_queries} distinct and creative search queries for Spotify playlists. These queries should capture the core and nuanced emotions, themes, and moods of the text. These are fed into Spotify's search, so word queries to maximize result quality.Ideally, resulting playlists should contain songs with cathartic lyrics related to the user's experience in detail. Do not include anything else in your response except for the JSON.
+    Based on the following life experience, generate a JSON object containing a single key "queries" which holds a list of {n_queries} distinct and creative search queries for Spotify playlists. 
+    These queries should capture the core and nuanced emotions, themes, and moods of the text. These are fed into Spotify's search, so word queries to maximize result quality. 
+    Do not include words like "songs about" in queries. Structure your queries to match how the titles of human-created playlists are formatted.
+    Ideally, resulting playlists should contain songs with cathartic lyrics related to the user's experience in detail. Do not include anything else in your response except for the JSON.
+    While queries should still try to capture the overall theme, queries should have different focusesin order to capture the details of the user's experience.
     Example: User experience: "I'm feeling sad and lonely because my dog passed away"
     JSON Response:
     {{
@@ -147,7 +199,7 @@ def generate_spotify_queries(user_experience, gemini_model, n_queries):
     }}
     <END INSTRUCTIONS>
     <BEGIN USER EXPERIENCE>
-    {user_experience}
+    {user_experience + '(' + ' '.join(genres) + ')'}
     <END USER EXPERIENCE>
     <BEGIN JSON RESPONSE>
     JSON Response:
@@ -223,7 +275,7 @@ def get_songs_from_spotify(queries: List[str], sp_client: spotipy.Spotify, n_pla
     return song_list
 
 
-def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, n_playlists: int = 10, genre_filter: Optional[str] = None):
+def run_hybrid_search(user_experience: str, genres: List[str], top_k: int = 7, n_queries: int = 5, n_playlists: int = 10, debug: bool = False, debug_songs: List[str] = None):
     """
     Main function to run the entire recommendation pipeline.
     """
@@ -236,7 +288,7 @@ def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, 
 
     # Step 2: Generate search queries
     gemini_model = genai.GenerativeModel('gemini-2.5-flash')
-    queries = generate_spotify_queries(user_experience, gemini_model, n_queries)
+    queries = generate_spotify_queries(user_experience, genres, gemini_model, n_queries)
     if not queries:
         print("Could not generate search queries. Exiting.")
         return
@@ -257,16 +309,35 @@ def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, 
     
     print(f"Found {len(songs_in_dataset)} songs in the local dataset.")
 
+    # Debug mode: Check if specific songs are in the results and track found songs
+    debug_found_songs = []
+    if debug and debug_songs:
+        print(f"\n🔍 Checking for {len(debug_songs)} debug songs in current results...")
+        
+        for debug_song in debug_songs:
+            # Check if the song is in the current dataset results
+            matches = songs_in_dataset[songs_in_dataset['title'].str.contains(debug_song, case=False, na=False)]
+            if not matches.empty:
+                print(f"✅ Found '{debug_song}':")
+                for _, match in matches.iterrows():
+                    print(f"   - {match['title']} by {match['artist']}")
+                    debug_found_songs.append((match['title'], match['artist']))
+            else:
+                print(f"❌ '{debug_song}' not found in current results")
+        print()
+
     # Apply genre filter if provided
-    if genre_filter:
-        if 'genre' in songs_in_dataset.columns:
-            songs_in_dataset = songs_in_dataset[songs_in_dataset['genre'].str.lower() == genre_filter.lower()]
+    if genres != []:
+        if 'tag' in songs_in_dataset.columns:
+            # Convert genres list to lowercase for case-insensitive matching
+            genres_lower = [genre.lower().strip() for genre in genres]
+            songs_in_dataset = songs_in_dataset[songs_in_dataset['tag'].str.lower().isin(genres_lower)]
             if songs_in_dataset.empty:
-                print(f"No songs found for the genre '{genre_filter}'. Exiting.")
+                print(f"No songs found for the genres '{', '.join(genres)}'. Exiting.")
                 return
-            print(f"Filtered down to {len(songs_in_dataset)} songs for the genre '{genre_filter}'.")
+            print(f"Filtered down to {len(songs_in_dataset)} songs for the genres '{', '.join(genres)}'.")
         else:
-            print("Warning: 'genre' column not found in the dataset. Cannot apply genre filter.")
+            print("Warning: 'tag' column not found in the dataset. Cannot apply genre filter.")
 
     # Step 5: Perform vector search to get top candidates for LLM re-ranking
     print(f"🔍 Getting top {LLM_RERANK_COUNT} candidates from vector search...")
@@ -296,18 +367,53 @@ def run_hybrid_search(user_experience: str, top_k: int = 7, n_queries: int = 5, 
             print(f"   Combined Score: {score:.4f} | LLM Score: {llm_score}/100 | Views: {views}")
     else:
         print("Sorry, I couldn't find any suitable song recommendations for you.")
+    
+    # Debug mode: Score and log debug songs after final results
+    if debug and debug_found_songs:
+        debug_scores = asyncio.run(score_debug_songs(user_experience, debug_found_songs, songs_in_dataset, vector_searcher, gemini_model))
+        
+        if debug_scores:
+            print("\n" + "="*50)
+            print("🐛 DEBUG: Scores for requested songs")
+            print("="*50)
+            for title, artist, vector_score, llm_score, combined_score, views in debug_scores:
+                print(f"'{title}' by {artist}")
+                print(f"   Vector Score: {vector_score:.4f} | LLM Score: {llm_score}/100 | Combined Score: {combined_score:.4f} | Views: {views}")
+                
+                # Check if this song appeared in final recommendations
+                in_final = any(title == rec_title and artist == rec_artist for _, rec_title, rec_artist, _, _ in final_recommendations)
+                if in_final:
+                    print(f"   ✅ This song appeared in your final recommendations")
+                else:
+                    print(f"   ❌ This song did not make it to your final recommendations")
+                print()
+    
     print("="*50)
     end_time = time.time()
     print(f"Total time taken: {end_time - start_time:.2f} seconds")
 
 
 if __name__ == "__main__":
+    # Check for debug flag in command line arguments
+    debug_mode = "--debug" in sys.argv or "-d" in sys.argv
+    
+    if debug_mode:
+        print("🐛 DEBUG MODE ENABLED")
+    
     user_query = input("Please describe your recent life experience in a few sentences:\n> ").strip()
     
     # Optional: Ask for genre
-    genre_input = input("Enter a genre to filter by (e.g., pop, rock, rap) or press Enter to skip:\n> ").strip()
+    genre_input = input("Enter a genre to filter by separated by commas (ex: pop, rock, rap, country) or press Enter to skip:\n> ").strip()
+    genre_input = genre_input.split(', ')
     if not genre_input:
-        genre_input = None # Unfiltered
+        genre_input = [] # Unfiltered
+    
+    # Debug mode: Ask for songs to check upfront
+    debug_songs_list = []
+    if debug_mode:
+        debug_songs = input("🐛 DEBUG: Enter song titles to check if they're in the results (separated by commas), or press Enter to skip:\n> ").strip()
+        if debug_songs:
+            debug_songs_list = [song.strip() for song in debug_songs.split(',')]
 
     if user_query:
-        run_hybrid_search(user_query, genre_filter=genre_input)
+        run_hybrid_search(user_query, genres=genre_input, debug=debug_mode, debug_songs=debug_songs_list)

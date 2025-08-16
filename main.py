@@ -18,7 +18,8 @@ if __name__ == "__main__":
     # It's raining outside heavily and I feel so comfortable. I'm staying in and cuddling with my girlfriend in candlelight. We'll get under blankets and watch tv or just talk, and enjoy each other's company.
     # I hate my life. All my friends are assholes. My boss is a jerk. Everyone is so surface level. I don't get paid enough to be here.
     # I'm at the beach drinking with my long-time friends on the weekend. It's relaxed and we're playing volleyball and the music is turned up loud. Country music
-
+    # My girlfriend is always angry. She pushes me away even though I know she doesn't want to. What do I have to do to be loved by her? 
+    # I'm locked in on the grind. My phone is off, people around me are trying to take what I've worked for. I'm not going to let them. I'm going to be the best. People are jealous of me. My life is amazing.
 
 """
 0      pop  2138587   41.648432
