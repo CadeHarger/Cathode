@@ -275,7 +275,7 @@ def get_songs_from_spotify(queries: List[str], sp_client: spotipy.Spotify, n_pla
     return song_list
 
 
-def run_hybrid_search(user_experience: str, genres: List[str], top_k: int = 7, n_queries: int = 5, n_playlists: int = 10, debug: bool = False, debug_songs: List[str] = None):
+async def run_hybrid_search(user_experience: str, genres: List[str], top_k: int = 7, n_queries: int = 5, n_playlists: int = 10, debug: bool = False, debug_songs: List[str] = None):
     """
     Main function to run the entire recommendation pipeline.
     """
@@ -350,7 +350,7 @@ def run_hybrid_search(user_experience: str, genres: List[str], top_k: int = 7, n
     print(f"✅ Vector search returned {len(vector_results)} candidates")
     
     # Step 6: Re-rank top candidates with LLM
-    final_recommendations = asyncio.run(rerank_with_llm(user_experience, vector_results, songs_in_dataset, gemini_model))
+    final_recommendations = await rerank_with_llm(user_experience, vector_results, songs_in_dataset, gemini_model)
     
     # Take only the top_k results for final output
     final_recommendations = final_recommendations[:top_k]
@@ -370,7 +370,7 @@ def run_hybrid_search(user_experience: str, genres: List[str], top_k: int = 7, n
     
     # Debug mode: Score and log debug songs after final results
     if debug and debug_found_songs:
-        debug_scores = asyncio.run(score_debug_songs(user_experience, debug_found_songs, songs_in_dataset, vector_searcher, gemini_model))
+        debug_scores = await score_debug_songs(user_experience, debug_found_songs, songs_in_dataset, vector_searcher, gemini_model)
         
         if debug_scores:
             print("\n" + "="*50)
@@ -391,6 +391,9 @@ def run_hybrid_search(user_experience: str, genres: List[str], top_k: int = 7, n
     print("="*50)
     end_time = time.time()
     print(f"Total time taken: {end_time - start_time:.2f} seconds")
+    
+    # Small delay to allow gRPC connections to close properly
+    await asyncio.sleep(0.1)
 
 
 if __name__ == "__main__":
@@ -416,4 +419,4 @@ if __name__ == "__main__":
             debug_songs_list = [song.strip() for song in debug_songs.split(',')]
 
     if user_query:
-        run_hybrid_search(user_query, genres=genre_input, debug=debug_mode, debug_songs=debug_songs_list)
+        asyncio.run(run_hybrid_search(user_query, genres=genre_input, debug=debug_mode, debug_songs=debug_songs_list))
