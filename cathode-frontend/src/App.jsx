@@ -40,7 +40,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-slate-900 text-white">
+    <div className="min-h-screen bg-background text-text-dark">
       <MobileHeader onNew={openNew} onOpenSettings={openSettings} />
 
       {page === 'home' && <Home playlists={playlists} onNew={openNew} onOpenPlaylist={openPlaylist} />}

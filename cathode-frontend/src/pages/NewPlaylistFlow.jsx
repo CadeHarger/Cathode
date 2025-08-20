@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Logo from '../components/Logo';
 import { API_CREATE_PLAYLIST } from '../utils/helpers';
+import { Button, TextArea, ButtonGroup, Slider, ProgressBar } from '@blueprintjs/core';
 
 function NewPlaylistFlow({ onCancel, onCreated }) {
   const [step, setStep] = useState(1);
@@ -63,12 +64,12 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
   if (step === 1)
     return (
       <div className="pt-20 px-4 pb-40">
-        <h2 className="text-white font-bold text-xl mb-2">Describe the experience</h2>
-        <p className="text-slate-400 text-sm mb-4">Write a few lines about what happened and how you felt. Be honest — it helps the playlist resonate.</p>
-        <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={6} className="w-full rounded-lg p-3 bg-slate-800 text-white placeholder-slate-400" placeholder="I had my heart broken but it's also a relief..." />
+        <h2 className="bp6-heading text-text-dark font-bold text-xl mb-2">Describe the experience</h2>
+        <p className="bp6-text-muted text-sm mb-4">Write a few lines about what happened and how you felt. Be honest — it helps the playlist resonate.</p>
+        <TextArea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={6} className="w-full rounded-lg p-3 bg-slate-200 text-text-dark placeholder-slate-500" placeholder="I had my heart broken but it's also a relief..." fill />
         <div className="flex justify-between items-center mt-4">
-          <button onClick={onCancel} className="text-slate-400">Cancel</button>
-          <button onClick={() => setStep(2)} className="bg-yellow-400 px-4 py-2 rounded font-semibold">Next</button>
+          <Button onClick={onCancel} text="Cancel" minimal />
+          <Button onClick={() => setStep(2)} intent="primary" text="Next" />
         </div>
       </div>
     );
@@ -76,22 +77,20 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
   if (step === 2) {
     return (
       <div className="pt-20 px-4 pb-40">
-        <h2 className="text-white font-bold text-xl mb-2">Select filters</h2>
-        <p className="text-slate-400 text-sm mb-4">Pick a genre or mood to bias the playlist.</p>
-        <div className="flex gap-2 flex-wrap">
+        <h2 className="bp6-heading text-text-dark font-bold text-xl mb-2">Select filters</h2>
+        <p className="bp6-text-muted text-sm mb-4">Pick a genre or mood to bias the playlist.</p>
+        <ButtonGroup>
           {['Indie', 'Pop', 'R&B', 'Rock', 'All'].map((g) => (
-            <button key={g} onClick={() => setFilters((f) => ({ ...f, genres: [g] }))} className={`px-3 py-2 rounded ${filters.genres.includes(g) ? 'bg-slate-100 text-black' : 'bg-slate-800 text-slate-300'}`}>
-              {g}
-            </button>
+            <Button key={g} onClick={() => setFilters((f) => ({ ...f, genres: [g] }))} active={filters.genres.includes(g)} text={g} />
           ))}
-        </div>
+        </ButtonGroup>
         <div className="mt-6">
-          <label className="text-slate-400 text-sm">Exploration slider</label>
-          <input type="range" min={0} max={100} className="w-full mt-2" />
+          <label className="bp6-label text-sm">Exploration slider</label>
+          <Slider min={0} max={100} />
         </div>
         <div className="flex justify-between items-center mt-6">
-          <button onClick={() => setStep(1)} className="text-slate-400">Back</button>
-          <button onClick={() => { setStep(3); handleCreate(); }} className="bg-yellow-400 px-4 py-2 rounded font-semibold">Create</button>
+          <Button onClick={() => setStep(1)} text="Back" minimal />
+          <Button onClick={() => { setStep(3); handleCreate(); }} intent="primary" text="Create" />
         </div>
       </div>
     );
@@ -102,14 +101,12 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
     <div className="pt-20 px-4 pb-40 flex flex-col items-center">
       <Logo small />
       <div className="mt-6 w-full">
-        <div className="text-slate-300">Searching lyrics & scoring songs</div>
-        <div className="w-full bg-slate-800 rounded-full h-3 mt-3 overflow-hidden">
-          <div className="h-full bg-yellow-400 transition-all" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="text-slate-400 text-sm mt-2">{Math.round(progress)}% — ~{Math.max(0, 3 - Math.floor(progress / 40))} mins remaining</div>
+        <div className="text-text-dark">Searching lyrics & scoring songs</div>
+        <ProgressBar value={progress / 100} />
+        <div className="bp6-text-muted text-sm mt-2">{Math.round(progress)}% — ~{Math.max(0, 3 - Math.floor(progress / 40))} mins remaining</div>
         <div className="flex justify-between mt-6">
-          <button onClick={() => { setStep(2); }} className="text-slate-400">Back</button>
-          <button onClick={() => { setStep(1); setProgress(0); }} className="text-slate-400">Cancel</button>
+          <Button onClick={() => { setStep(2); }} text="Back" minimal />
+          <Button onClick={() => { setStep(1); setProgress(0); }} text="Cancel" minimal />
         </div>
       </div>
     </div>

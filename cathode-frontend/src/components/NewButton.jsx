@@ -1,10 +1,16 @@
 import React from 'react';
+import { Button } from '@blueprintjs/core';
+import { Add } from '@blueprintjs/icons';
 
 function NewButton({ onClick }) {
   return (
-    <button onClick={onClick} className="w-full rounded-xl bg-yellow-400/95 py-6 flex items-center justify-center text-black font-bold text-lg shadow">
-      + New Playlist
-    </button>
+    <Button 
+      onClick={onClick} 
+      large
+      intent="primary"
+      text="+ New Playlist"
+      icon={<Add />}
+    />
   );
 }
 

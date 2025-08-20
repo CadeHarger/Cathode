@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@blueprintjs/core": "^6.2.0",
+    "@blueprintjs/icons": "^6.1.0",
+    "blueprintjs": "^0.0.8",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
