@@ -41,7 +41,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-text-dark">
-      <MobileHeader onNew={openNew} onOpenSettings={openSettings} />
 
       {page === 'home' && <Home playlists={playlists} onNew={openNew} onOpenPlaylist={openPlaylist} />}
       {page === 'new' && <NewPlaylistFlow onCancel={handleCancelNew} onCreated={handleCreated} />}

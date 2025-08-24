@@ -1,9 +1,21 @@
 import React from 'react';
 import IconLogo from '../assets/Icon-Logo.png';
-import TextLogo from '../assets/Text-Logo.png';
+import TextLogo from '../assets/Text-Logo.jpeg';
 
-const Logo = ({ small }) => (
+const Logo = ({ small, text }) => (
   <div className={`flex items-center ${small ? 'space-x-2' : 'space-x-3'}`}>
+    {text ? (
+      <img 
+        src={TextLogo} 
+        alt="Cathode" 
+        className={`${small ? '!h-8' : '!h-12'} !w-auto object-contain !max-w-40`}
+        style={{
+          height: small ? '7vh' : '20vh',
+          width: 'auto',
+          objectFit: 'contain'
+        }}
+      />
+      ) : (
     <img 
       src={IconLogo} 
       alt="Cathode Icon" 
@@ -14,17 +26,7 @@ const Logo = ({ small }) => (
         objectFit: 'contain'
       }}
     />
-    <img 
-      src={TextLogo} 
-      alt="Cathode" 
-      className={`${small ? '!h-8' : '!h-12'} !w-auto object-contain !max-w-40`}
-      style={{
-        height: small ? '32px' : '48px',
-        width: 'auto',
-        maxWidth: '160px',
-        objectFit: 'contain'
-      }}
-    />
+    )}
   </div>
 );
 

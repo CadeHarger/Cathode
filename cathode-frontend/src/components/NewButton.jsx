@@ -1,16 +1,14 @@
 import React from 'react';
-import { Button } from '@blueprintjs/core';
 import { Add } from '@blueprintjs/icons';
+
+import './NewButton.css';
 
 function NewButton({ onClick }) {
   return (
-    <Button 
-      onClick={onClick} 
-      large
-      intent="primary"
-      text="+ New Playlist"
-      icon={<Add />}
-    />
+    <div className="new-button" onClick={onClick}>  
+      <Add size='10vh' className="add-icon" />
+      <div className="new-button-text">Generate Playlist</div>
+    </div>
   );
 }
 
