@@ -64,7 +64,7 @@ export default function App() {
     <div className="min-h-screen bg-background text-text-dark">
 
       {page === 'home' && <Home playlists={playlists} onNew={openNew} onOpenPlaylist={openPlaylist} onAbout={openAbout} onHome={openHome} />}
-      {page === 'new' && <NewPlaylistFlow onCancel={handleCancelNew} onCreated={handleCreated} />}
+      {page === 'new' && <NewPlaylistFlow onCancel={handleCancelNew} onCreated={handleCreated} onHome={openHome} onAbout={openAbout} />}
       {page === 'results' && (
         <ResultsView 
           playlist={activePlaylist} 

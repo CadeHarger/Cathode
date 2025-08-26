@@ -4,7 +4,7 @@ import Step1DescribeExperience from './Step1DescribeExperience';
 import Step2SelectFilters from './Step2SelectFilters';
 import Step3Progress from './Step3Progress';
 
-function NewPlaylistFlow({ onCancel, onCreated }) {
+function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
   const [step, setStep] = useState(1);
   const [prompt, setPrompt] = useState('');
   const [filters, setFilters] = useState({ genres: [], exploration: 3 });
@@ -70,6 +70,8 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
         setPrompt={setPrompt}
         onCancel={onCancel}
         onNext={() => setStep(2)}
+        onHome={onHome}
+        onAbout={onAbout}
       />
     );
   }
@@ -82,6 +84,8 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
         onBack={() => setStep(1)}
         onCreatePlaylist={() => { setStep(3); handleCreate(); }}
         onCancel={onCancel}
+        onHome={onHome}
+        onAbout={onAbout}
       />
     );
   }
@@ -92,6 +96,8 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
       progress={progress}
       onBack={() => setStep(2)}
       onCancel={() => { setStep(1); setProgress(0); }}
+      onHome={onHome}
+      onAbout={onAbout}
     />
   );
 }

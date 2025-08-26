@@ -11,25 +11,31 @@ function About({ onBack }) {
       <StepHeader 
         stepNumber="i" 
         title="About Cathode" 
-        subtitle="Crafting playlists from experience" 
+        subtitle="Cathode (Catharsis-Ode): A cathode is the electrode of a polarized electrical device from which current is released" 
         onCancel={onBack} 
       />
       <div className="playlists-container" style={{ alignItems: 'flex-start' }}>
         <h3 className="bp6-heading">What is Cathode?</h3>
         <p className="bp6-text-large">
-          Cathode is a smart playlist generator that uses natural language to understand the mood, 
-          vibe, or experience you're looking for, and curates a unique playlist to match.
+          Cathode seeks to find music that is relatable and achieves catharsis for the experience and feeling of the user by using a combination of heuristics and language models.
         </p>
         <CustomBr />
         <h3 className="bp6-heading">How does it work?</h3>
-        <p>
-          We use a combination of language models and music metadata analysis to find the perfect tracks 
-          for your custom prompt. Just describe what you want, and let us handle the rest.
+        <p className="bp6-text-large">
+          Cathode first generates a list of queries to search for playlists on Spotify from the user's query. 
+          It then matches all the songs from the playlists to an <a href="https://www.kaggle.com/datasets/carlosgdcj/genius-song-lyrics-with-language-information/data" target="_blank" rel="noopener noreferrer">open-source database of song lyrics</a>. 
+          These songs are filtered by the genre filters.
+          Cathode then uses vector search on embeddings of the matched lyrics to create a song score. 
+          The top 100 scoring songs are ranked using weighted LLM-prompted scores and popularity weights. 
+          The final playlist is made by selecting the top 25 songs from the final results!
         </p>
         <CustomBr />
         <h3 className="bp6-heading">Credits</h3>
-        <p>
-          Built with React, Blueprint.js, and a lot of coffee.
+        <p className="bp6-text-large">
+          Built by Cade Harger with React, Blueprint.js, Python, GCP, and a lot of Cursor tokens. Reach out to me on my <a href="https://www.linkedin.com/in/cadeharger/">LinkedIn</a> if you found this interesting! 
+        </p>
+        <p className="bp6-text-large">
+            <a href="https://github.com/cadeharger/cathode">Project Github</a>
         </p>
       </div>
       <BottomBar onHome={onBack} />

@@ -23,7 +23,7 @@ function StepHeader({ stepNumber, title, subtitle, onCancel }) {
           <div className="flex flex-row items-center justify-center gap-20">
             <div className="step-number-container">
               <div className="step-number-trail"></div>
-              <span className="step-number">{stepNumber}.</span>
+              <span className="step-number">{stepNumber}</span>
             </div>
             {title}
           </div>

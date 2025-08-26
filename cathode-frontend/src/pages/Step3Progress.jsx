@@ -4,7 +4,17 @@ import StepHeader from '../components/StepHeader';
 import BottomBar from '../components/BottomBar';
 import './styles/steps.css';
 
-function Step3Progress({ progress, onBack, onCancel }) {
+
+const puns = [
+  "Get Amped",
+  "Charging up",
+  "Finding shocking results",
+  "Hiring music conductors",
+  "Sorry for the watt",
+]
+
+function Step3Progress({ progress, onBack, onCancel, onHome, onAbout }) {
+  const [punIndex, setPunIndex] = useState(0);
   const [searchedSongs, setSearchedSongs] = useState(0);
   
   // Calculate songs searched based on progress (simulate backend data)
@@ -15,15 +25,25 @@ function Step3Progress({ progress, onBack, onCancel }) {
     setSearchedSongs(currentSongs);
   }, [progress]);
 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setPunIndex((prevIndex) => (prevIndex + 1) % puns.length);
+    }, 5000); // Rotate every 5 seconds
+
+    return () => clearInterval(intervalId); // Cleanup on unmount
+  }, []);
+
+  const currentMessage = `We're analyzing lyrics and scoring songs to create the perfect playlist for your experience.`;
+
   return (
     <div className="container">
       <StepHeader 
-        stepNumber={3}
-        title="Generating Your Playlist"
-        subtitle="We're analyzing lyrics and scoring songs to create the perfect playlist for your experience."
-        onCancel={onCancel}
+        stepNumber="3" 
+        title={"Getting Results..."} 
+        subtitle={currentMessage} 
+        onCancel={onCancel} 
       />
-      <h1>Get Amped.</h1>
+      <h1>{puns[punIndex]}</h1>
       
       <div className="middle-section-3">
         
@@ -57,7 +77,7 @@ function Step3Progress({ progress, onBack, onCancel }) {
         <Button onClick={onCancel} text="Cancel" variant="minimal" size="large"/>
       </div>
       
-      <BottomBar />
+      <BottomBar onHome={onHome} onAbout={onAbout} />
     </div>
   );
 }

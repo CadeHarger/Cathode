@@ -14,11 +14,22 @@ const externalToInternal = {
 }
 
 
-function Step2SelectFilters({ filters, setFilters, onBack, onCreatePlaylist, onCancel }) {
+function Step2SelectFilters({ filters, setFilters, onBack, onCreatePlaylist, onCancel, onHome, onAbout }) {
+  const genres = ['acoustic', 'rock', 'pop', 'hip-hop', 'electronic', 'jazz', 'blues', 'classical'];
+
+  const toggleGenre = (genre) => {
+    setFilters((f) => ({
+      ...f,
+      genres: f.genres.includes(genre)
+        ? f.genres.filter(g => g !== genre)
+        : [...f.genres, genre]
+    }));
+  };
+
   return (
     <div className="container">
       <StepHeader 
-        stepNumber={2}
+        stepNumber="2."
         title="Select Filters"
         subtitle="Decide how the playlist should be generated."
         onCancel={onCancel}
@@ -67,7 +78,7 @@ function Step2SelectFilters({ filters, setFilters, onBack, onCreatePlaylist, onC
           <Button onClick={onCreatePlaylist} intent="primary" text="Create" />
         </div>
       </div>
-      <BottomBar />
+      <BottomBar onHome={onHome} onAbout={onAbout} />
     </div>
   );
 }
