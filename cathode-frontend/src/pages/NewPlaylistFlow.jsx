@@ -2,19 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { API_CREATE_PLAYLIST } from '../utils/helpers';
 import Step1DescribeExperience from './Step1DescribeExperience';
 import Step2SelectFilters from './Step2SelectFilters';
-import Step3Progress from '../components/Step3Progress';
+import Step3Progress from './Step3Progress';
 
 function NewPlaylistFlow({ onCancel, onCreated }) {
   const [step, setStep] = useState(1);
   const [prompt, setPrompt] = useState('');
-  const [filters, setFilters] = useState({ genres: [] });
+  const [filters, setFilters] = useState({ genres: [], exploration: 3 });
   const [progress, setProgress] = useState(0);
   const [isCreating, setCreating] = useState(false);
 
   useEffect(() => {
     let t;
     if (isCreating && progress < 100) {
-      t = setInterval(() => setProgress((p) => Math.min(100, p + Math.random() * 12)), 400);
+      t = setInterval(() => setProgress(10));// ((p) => Math.min(100, p + Math.random() * 12)), 400);
     }
     return () => clearInterval(t);
   }, [isCreating, progress]);

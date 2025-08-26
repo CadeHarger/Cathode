@@ -3,6 +3,7 @@ import NewButton from '../components/NewButton';
 import PlaylistCard from '../components/PlaylistCard';
 import Logo from '../components/Logo';
 import CustomBr from '../components/CustomBr';
+import BottomBar from '../components/BottomBar';
 
 import './styles/home.css';
 
@@ -19,6 +20,7 @@ function Home({ playlists, onNew, onOpenPlaylist }) {
           <PlaylistCard key={p.id} p={p} onOpen={onOpenPlaylist} />
         ))}
       </div>
+      <BottomBar />
     </div>
   );
 }

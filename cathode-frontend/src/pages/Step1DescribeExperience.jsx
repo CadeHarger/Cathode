@@ -1,24 +1,18 @@
 import React from 'react';
 import { Button, TextArea } from '@blueprintjs/core';
 import './styles/steps.css';
-import Logo from '../components/Logo';
-import { Home } from '@blueprintjs/icons';
+import StepHeader from '../components/StepHeader';
+import BottomBar from '../components/BottomBar';
 
 function Step1DescribeExperience({ prompt, setPrompt, onCancel, onNext }) {
   return (
     <div className="container">
-      <div className="top-section-1">
-        <div className="logo-1">
-          <Logo />
-        </div>
-        <div className="flex flex-col items-center justify-center">
-          <h1 className="bp6-heading text-text-dark font-bold text-xl mb-2">Describe your experience.</h1>
-          <p className="bp6-text-muted">Write a few lines about what happened and how you felt. Be detailed and honest- it helps us get the best results.</p>
-        </div>
-        <div className="home-1">
-            <Home onClick={onCancel} size={30} className="home-icon" />
-        </div>
-      </div>
+      <StepHeader 
+        stepNumber={1}
+        title="Describe your experience."
+        subtitle="Write a few lines about what happened and how you felt. Be detailed and honest- it helps us get the best results."
+        onCancel={onCancel}
+      />
       <div className="middle-section-1">
         <TextArea 
           value={prompt} 
@@ -37,6 +31,7 @@ function Step1DescribeExperience({ prompt, setPrompt, onCancel, onNext }) {
         <Button onClick={onCancel} text="Cancel" variant="minimal" size="large"/>
         <Button onClick={onNext} intent="primary" text="Next" variant="outlined" size="large" disabled={prompt.trim().length < 1}/>
       </div>
+      <BottomBar />
     </div>
   );
 }

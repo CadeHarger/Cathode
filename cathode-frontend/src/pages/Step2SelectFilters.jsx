@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button, ButtonGroup, Slider } from '@blueprintjs/core';
-import Logo from '../components/Logo';
-import { Home } from '@blueprintjs/icons';
+import StepHeader from '../components/StepHeader';
+import BottomBar from '../components/BottomBar';
+import './styles/steps.css';
 
 
 const externalToInternal = {
@@ -16,42 +17,57 @@ const externalToInternal = {
 function Step2SelectFilters({ filters, setFilters, onBack, onCreatePlaylist, onCancel }) {
   return (
     <div className="container">
-      <div className="top-section-1">
-        <div className="logo-1">
-          <Logo />
-        </div>
-        <div className="flex flex-col items-center justify-center">
-          <h1 className="bp6-heading text-text-dark font-bold text-xl mb-2">Select Filters</h1>
-          <p className="bp6-text-muted text-sm mb-4">Decide how the playlist should be generated.</p>
-        </div>
-        <div className="home-1">
-          <Home onClick={onCancel} size={30} className="home-icon" />
-        </div>
-      </div>
+      <StepHeader 
+        stepNumber={2}
+        title="Select Filters"
+        subtitle="Decide how the playlist should be generated."
+        onCancel={onCancel}
+      />
       <div className="middle-section-2">
-        <div className="filter">
-          <h3>1. Genres</h3>
-          <p className="bp6-text-muted text-sm mb-4">Pick genres to include in the playlist.</p>
-          <ButtonGroup>
-            {['Pop', 'Rap', 'R&B', 'Rock', 'Country', 'Misc', 'All'].map((g) => (
+        <div className="filters">
+          <div className="filter">
+            <h3>1. Genres</h3>
+            <p className="bp6-text-muted text-sm mb-4">Pick genres to include in the playlist.</p>
+            <ButtonGroup>
+              {['Pop', 'Rap', 'R&B', 'Rock', 'Country', 'Misc'].map((g) => (
+                <Button 
+                  key={g} 
+                  onClick={() => setFilters((f) => ({
+                    ...f, 
+                    genres: f.genres.includes(g) 
+                      ? f.genres.filter(genre => genre !== g)
+                      : [...f.genres, g]
+                  }))} 
+                  active={filters.genres.includes(g)} 
+                  text={g} 
+                />
+              ))}
               <Button 
-                key={g} 
-                onClick={() => setFilters((f) => ({ ...f, genres: [g] }))} 
-                active={filters.genres.includes(g)} 
-                text={g} 
+                className={`all-button ${filters.genres.length === 0 ? 'all-button-active' : ''}`}
+                onClick={() => setFilters((f) => ({ ...f, genres: [] }))} 
+                text="All" 
               />
-            ))}
-          </ButtonGroup>
-        </div>
-        <div className="mt-6">
-          <label className="bp6-label text-sm">Exploration slider</label>
-          <Slider min={0} max={100} />
+            </ButtonGroup>
+          </div>
+          <div className="filter">
+            <h3>2. Exploration</h3>
+            <p className="bp6-text-muted text-sm mb-4">More exploration = more variety, less popular songs.</p>
+            <div style={{marginLeft: '3px', width: '100%', marginRight: '3px'}}>
+            <Slider 
+              min={0} 
+              max={10} 
+              value={filters.exploration} 
+              onChange={(value) => setFilters((f) => ({ ...f, exploration: value }))}
+            />
+            </div>
+          </div>
         </div>
         <div className="flex justify-between items-center mt-6">
           <Button onClick={onBack} text="Back" minimal />
           <Button onClick={onCreatePlaylist} intent="primary" text="Create" />
         </div>
       </div>
+      <BottomBar />
     </div>
   );
 }

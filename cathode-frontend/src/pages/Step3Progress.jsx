@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Button, ProgressBar } from '@blueprintjs/core';
-import StepHeader from './StepHeader';
-import BottomBar from './BottomBar';
-import '../pages/styles/steps.css';
+import Logo from '../components/Logo';
+import StepHeader from '../components/StepHeader';
+import BottomBar from '../components/BottomBar';
+
+import './styles/steps.css';
 
 function Step3Progress({ progress, onBack, onCancel }) {
   const [searchedSongs, setSearchedSongs] = useState(0);

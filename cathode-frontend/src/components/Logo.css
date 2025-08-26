@@ -1,0 +1,116 @@
+/* Logo Animation Styles */
+.logo-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.logo-animated {
+  animation: dashIn 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  transform: translateX(-100vw);
+}
+
+.logo-trail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(58, 184, 248, 0.6) 20%, 
+    rgba(58, 184, 248, 0.8) 40%, 
+    rgba(58, 184, 248, 0.4) 60%, 
+    transparent 80%
+  );
+  animation: trailEffect 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  transform: translateX(-100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.logo-content {
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes dashIn {
+  0% {
+    transform: translateX(-100vw);
+  }
+  70% {
+    transform: translateX(10px);
+  }
+  85% {
+    transform: translateX(-5px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes trailEffect {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    transform: translateX(0%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Subtle glow effect for extra modern feel - now follows the actual image shape */
+.logo-animated img {
+  filter: drop-shadow(0 0 0 transparent);
+  animation: logoGlow 2s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+/* Alternative approach using box-shadow that respects transparency */
+.logo-animated::after {
+  display: none; /* Disable the old rectangular glow */
+}
+
+@keyframes logoGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(58, 184, 248, 0.4)) 
+            drop-shadow(0 0 16px rgba(58, 184, 248, 0.2));
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  @keyframes dashIn {
+    0% {
+      transform: translateX(-100vw);
+    }
+    75% {
+      transform: translateX(5px);
+    }
+    90% {
+      transform: translateX(-2px);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+}
