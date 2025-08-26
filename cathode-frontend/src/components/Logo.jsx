@@ -10,7 +10,7 @@ const Logo = ({ small, text }) => (
         alt="Cathode" 
         className={`${small ? '!h-8' : '!h-12'} !w-auto object-contain !max-w-40`}
         style={{
-          height: small ? '7vh' : '20vh',
+          height: small ? '7vh' : '16vh',
           width: 'auto',
           objectFit: 'contain'
         }}

@@ -12,7 +12,7 @@ function Home({ playlists, onNew, onOpenPlaylist }) {
       <Logo text/>
       <NewButton onClick={onNew} />
       <div className="playlists-container">
-        <h3 className="bp6-heading text-text-dark font-semibold mb-2">Generated Playlists</h3>
+        <h3 className="bp6-heading text-text-dark font-semibold mb-2">My Playlists</h3>
         <CustomBr />
         {playlists.length === 0 && <div className="bp6-text-muted">No playlists yet — create one to get started.</div>}
         {playlists.map((p) => (

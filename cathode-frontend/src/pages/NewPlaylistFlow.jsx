@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import Logo from '../components/Logo';
 import { API_CREATE_PLAYLIST } from '../utils/helpers';
-import { Button, TextArea, ButtonGroup, Slider, ProgressBar } from '@blueprintjs/core';
+import Step1DescribeExperience from './Step1DescribeExperience';
+import Step2SelectFilters from './Step2SelectFilters';
+import Step3Progress from '../components/Step3Progress';
 
 function NewPlaylistFlow({ onCancel, onCreated }) {
   const [step, setStep] = useState(1);
@@ -61,55 +62,36 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
     }
   }
 
-  if (step === 1)
+  if (step === 1) {
     return (
-      <div className="pt-20 px-4 pb-40">
-        <h2 className="bp6-heading text-text-dark font-bold text-xl mb-2">Describe the experience</h2>
-        <p className="bp6-text-muted text-sm mb-4">Write a few lines about what happened and how you felt. Be honest — it helps the playlist resonate.</p>
-        <TextArea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={6} className="w-full rounded-lg p-3 bg-slate-200 text-text-dark placeholder-slate-500" placeholder="I had my heart broken but it's also a relief..." fill />
-        <div className="flex justify-between items-center mt-4">
-          <Button onClick={onCancel} text="Cancel" minimal />
-          <Button onClick={() => setStep(2)} intent="primary" text="Next" />
-        </div>
-      </div>
+      <Step1DescribeExperience 
+        prompt={prompt}
+        setPrompt={setPrompt}
+        onCancel={onCancel}
+        onNext={() => setStep(2)}
+      />
     );
+  }
 
   if (step === 2) {
     return (
-      <div className="pt-20 px-4 pb-40">
-        <h2 className="bp6-heading text-text-dark font-bold text-xl mb-2">Select filters</h2>
-        <p className="bp6-text-muted text-sm mb-4">Pick a genre or mood to bias the playlist.</p>
-        <ButtonGroup>
-          {['Indie', 'Pop', 'R&B', 'Rock', 'All'].map((g) => (
-            <Button key={g} onClick={() => setFilters((f) => ({ ...f, genres: [g] }))} active={filters.genres.includes(g)} text={g} />
-          ))}
-        </ButtonGroup>
-        <div className="mt-6">
-          <label className="bp6-label text-sm">Exploration slider</label>
-          <Slider min={0} max={100} />
-        </div>
-        <div className="flex justify-between items-center mt-6">
-          <Button onClick={() => setStep(1)} text="Back" minimal />
-          <Button onClick={() => { setStep(3); handleCreate(); }} intent="primary" text="Create" />
-        </div>
-      </div>
+      <Step2SelectFilters 
+        filters={filters}
+        setFilters={setFilters}
+        onBack={() => setStep(1)}
+        onCreatePlaylist={() => { setStep(3); handleCreate(); }}
+        onCancel={onCancel}
+      />
     );
   }
 
   // Step 3: waiting / progress
   return (
-    <div className="pt-20 px-4 pb-40 flex flex-col items-center">
-      <Logo small />
-      <div className="mt-6 w-full">
-        <div className="text-text-dark">Searching lyrics & scoring songs</div>
-        <ProgressBar value={progress / 100} />
-        <div className="bp6-text-muted text-sm mt-2">{Math.round(progress)}% — ~{Math.max(0, 3 - Math.floor(progress / 40))} mins remaining</div>
-        <div className="flex justify-between mt-6">
-          <Button onClick={() => { setStep(2); }} text="Back" minimal />
-          <Button onClick={() => { setStep(1); setProgress(0); }} text="Cancel" minimal />
-        </div>
-      </div>
-    </div>
+    <Step3Progress 
+      progress={progress}
+      onBack={() => setStep(2)}
+      onCancel={() => { setStep(1); setProgress(0); }}
+    />
   );
 }
 
