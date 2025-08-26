@@ -75,7 +75,8 @@ button:focus-visible {
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
-    background-color: #ffffff;
+    /* Keep custom yellow background instead of overriding with white */
+    background-color: var(--color-background);
   }
   a:hover {
     color: #747bff;

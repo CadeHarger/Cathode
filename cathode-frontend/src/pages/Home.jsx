@@ -7,7 +7,7 @@ import BottomBar from '../components/BottomBar';
 
 import './styles/home.css';
 
-function Home({ playlists, onNew, onOpenPlaylist }) {
+function Home({ playlists, onNew, onOpenPlaylist, onHome, onAbout }) {
   return (
     <div className="container">
       <Logo text/>
@@ -20,7 +20,7 @@ function Home({ playlists, onNew, onOpenPlaylist }) {
           <PlaylistCard key={p.id} p={p} onOpen={onOpenPlaylist} />
         ))}
       </div>
-      <BottomBar />
+      <BottomBar onHome={onHome} onAbout={onAbout} />
     </div>
   );
 }

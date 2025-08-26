@@ -6,15 +6,24 @@ import MobileHeader from './components/MobileHeader';
 import Home from './pages/Home';
 import NewPlaylistFlow from './pages/NewPlaylistFlow';
 import ResultsView from './pages/ResultsView';
+import About from './pages/About';
 
 // ---------- Main App ----------
 export default function App() {
-  const [page, setPage] = useState('home'); // 'home', 'new', 'results'
+  const [page, setPage] = useState('home'); // 'home', 'new', 'results', 'about'
   const [playlists, setPlaylists] = useState([]);
   const [activePlaylist, setActivePlaylist] = useState(null);
 
   function openNew() {
     setPage('new');
+  }
+
+  function openAbout() {
+    setPage('about');
+  }
+
+  function openHome() {
+    setPage('home');
   }
 
   function openSettings() {
@@ -39,15 +48,33 @@ export default function App() {
     }
   }
 
+  function handleTitleChange(newTitle) {
+    if (!activePlaylist) return;
+
+    const updatedPlaylist = { ...activePlaylist, title: newTitle };
+    setActivePlaylist(updatedPlaylist);
+
+    const newPlaylists = playlists.map((p) => 
+      p.id === activePlaylist.id ? updatedPlaylist : p
+    );
+    setPlaylists(newPlaylists);
+  }
+
   return (
     <div className="min-h-screen bg-background text-text-dark">
 
-      {page === 'home' && <Home playlists={playlists} onNew={openNew} onOpenPlaylist={openPlaylist} />}
+      {page === 'home' && <Home playlists={playlists} onNew={openNew} onOpenPlaylist={openPlaylist} onAbout={openAbout} onHome={openHome} />}
       {page === 'new' && <NewPlaylistFlow onCancel={handleCancelNew} onCreated={handleCreated} />}
-      {page === 'results' && <ResultsView playlist={activePlaylist} onBack={() => setPage('home')} />}
-
-      {/* simple footer / help */}
-      <div className="fixed bottom-0 left-0 right-0 p-3 text-center text-slate-500 text-xs">Made with ❤️ — Cathode prototype</div>
+      {page === 'results' && (
+        <ResultsView 
+          playlist={activePlaylist} 
+          onBack={() => setPage('home')} 
+          onTitleChange={handleTitleChange}
+          onAbout={openAbout}
+          onHome={openHome}
+        />
+      )}
+      {page === 'about' && <About onBack={openHome} />}
     </div>
   );
 }

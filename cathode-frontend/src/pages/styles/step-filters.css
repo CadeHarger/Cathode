@@ -1,0 +1,48 @@
+/* Step 2 Filter Styling */
+
+.filters {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 10vh;
+}
+
+.filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+/* All button styling */
+.all-button {
+    background-color: transparent !important;
+    border: 2px solid #3ab8f8 !important;
+    color: #3ab8f8 !important;
+    position: relative;
+    transition: all 0.2s ease !important;
+}
+
+.all-button:hover {
+    background-color: rgba(58, 184, 248, 0.1) !important;
+    border-color: #3ab8f8 !important;
+    color: #3ab8f8 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(58, 184, 248, 0.3) !important;
+}
+
+.all-button-active {
+    background-color: #3ab8f8 !important;
+    border-color: #3ab8f8 !important;
+    color: white !important;
+    box-shadow: 0 2px 4px rgba(58, 184, 248, 0.4) !important;
+}
+
+.all-button-active:hover {
+    background-color: #2da3e0 !important;
+    border-color: #2da3e0 !important;
+    color: white !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(58, 184, 248, 0.5) !important;
+}

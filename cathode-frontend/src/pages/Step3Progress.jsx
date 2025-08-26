@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, ProgressBar } from '@blueprintjs/core';
-import Logo from '../components/Logo';
 import StepHeader from '../components/StepHeader';
 import BottomBar from '../components/BottomBar';
-
 import './styles/steps.css';
 
 function Step3Progress({ progress, onBack, onCancel }) {
@@ -25,8 +23,10 @@ function Step3Progress({ progress, onBack, onCancel }) {
         subtitle="We're analyzing lyrics and scoring songs to create the perfect playlist for your experience."
         onCancel={onCancel}
       />
+      <h1>Get Amped.</h1>
       
       <div className="middle-section-3">
+        
         <div className="progress-container">
           {/* Large Progress Bar */}
           <div className="progress-bar-container">

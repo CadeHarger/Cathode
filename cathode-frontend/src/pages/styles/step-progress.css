@@ -1,0 +1,97 @@
+/* Step 3 Progress Bar Styling */
+
+.progress-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 20px;
+}
+
+.progress-bar-container {
+    width: 80%;
+    height: 20px;
+}
+
+.large-progress-bar {
+    width: 100% !important;
+    height: 20px !important;
+}
+
+.large-progress-bar .bp5-progress-bar {
+    height: 20px !important;
+    border-radius: 10px !important;
+    background-color: rgba(58, 184, 248, 0.1) !important;
+}
+
+.large-progress-bar .bp5-progress-meter {
+    background: linear-gradient(90deg, #3ab8f8, #2da3e0) !important;
+    border-radius: 10px !important;
+    transition: width 0.5s ease !important;
+    position: relative;
+}
+
+.large-progress-bar .bp5-progress-meter::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(255, 255, 255, 0.3) 50%, 
+        transparent 100%
+    );
+    border-radius: 10px;
+    animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0%, 100% {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+    50% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.progress-text-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+}
+
+.progress-percentage {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #3ab8f8;
+    text-shadow: 0 0 10px rgba(58, 184, 248, 0.3);
+}
+
+.progress-details {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #2a2a2a;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.progress-time {
+    font-size: 0.9rem;
+    color: #666;
+    font-style: italic;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}

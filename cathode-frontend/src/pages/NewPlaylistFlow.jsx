@@ -41,6 +41,7 @@ function NewPlaylistFlow({ onCancel, onCreated }) {
       const data = {
         id: Date.now().toString(),
         title: prompt.slice(0, 30) || 'Untitled playlist',
+        genres: filters.genres,
         songs: Array.from({ length: 8 }).map((_, i) => ({
           id: `s-${i}`,
           title: `Song ${i + 1}`,

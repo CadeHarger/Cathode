@@ -1,0 +1,159 @@
+/* Playlist Card Wrapper - similar to SongCard */
+.playlist-card-wrapper {
+    display: flex;
+    align-items: stretch;
+    margin-bottom: 8px;
+    position: relative;
+    cursor: pointer;
+}
+
+.playlist-card {
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+    padding: 0 !important;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+.playlist-card-wrapper:hover .playlist-card {
+    border-color: rgba(58, 184, 248, 0.5);
+    box-shadow: 0 4px 16px rgba(58, 184, 248, 0.15);
+    transform: translateY(-1px);
+}
+
+.playlist-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+        rgba(58, 184, 248, 0.05) 0%, 
+        rgba(58, 184, 248, 0.02) 50%, 
+        rgba(58, 184, 248, 0.05) 100%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    border-radius: 12px;
+}
+
+.playlist-card-wrapper:hover .playlist-card::before {
+    opacity: 1;
+}
+
+/* Square cover area */
+.playlist-cover {
+    width: 60px;
+    height: 60px;
+    border: 1px solid rgba(58, 184, 248, 0.2);
+    border-right: none;
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+    background: linear-gradient(135deg, 
+        rgba(58, 184, 248, 0.1) 0%, 
+        rgba(58, 184, 248, 0.05) 100%
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.playlist-card-wrapper:hover .playlist-cover {
+    border-color: rgba(58, 184, 248, 0.5);
+    transform: translateY(-1px);
+}
+
+.playlist-cover-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 2px;
+    width: 46px;
+    height: 46px;
+}
+
+.playlist-cover-tile {
+    background: rgba(58, 184, 248, 0.25);
+    border-radius: 4px;
+}
+
+.tile-large {
+    grid-column: span 2;
+    grid-row: span 2;
+}
+
+/* Main content */
+.playlist-main-content {
+    display: flex;
+    align-items: stretch;
+}
+
+.playlist-content-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px 12px;
+    gap: 2px;
+}
+
+.playlist-details-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.playlist-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 2px;
+    color: #2a2a2a;
+}
+
+.playlist-subtitle {
+    font-size: 0.85rem;
+    color: #666;
+    line-height: 1.2;
+}
+
+.playlist-genres {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.playlist-chevron {
+    color: #8697a0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .playlist-cover {
+        width: 56px;
+        height: 56px;
+    }
+
+    .playlist-content-inner {
+        padding: 6px 10px;
+    }
+
+    .playlist-title {
+        font-size: 0.9rem;
+    }
+
+    .playlist-subtitle {
+        font-size: 0.8rem;
+    }
+}

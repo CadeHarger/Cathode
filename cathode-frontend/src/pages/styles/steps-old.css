@@ -1,0 +1,464 @@
+.container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 15px;
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+.top-section-1 {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    height: 20vh;
+    padding-top: 2vh;
+}
+
+.logo-1 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding-left: 2vh;
+}
+
+.home-1 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding-right: 2vh;
+    padding-top: 2vh;
+}
+
+.middle-section-1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80vw;
+    height: 30vh;
+}
+
+
+.middle-section-2 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    width: 80vw;
+    height: 50vh;
+}
+
+.middle-section-3 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 80vw;
+    height: 40vh;
+}
+
+
+.filters {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 5vh;
+}
+
+
+.filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+.home-icon {
+    cursor: pointer;
+    transition: color 0.1s ease;
+}
+
+.home-icon:hover {
+    color: #16161688;
+}
+
+.home-icon:active {
+    color: #16161688;
+}
+
+/* Step Number Animation Styles */
+.step-number-container {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+}
+
+.step-number {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #3ab8f8;
+    margin-right: 0.5rem;
+    display: inline-block;
+    animation: dropIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    transform: translateY(-100vh);
+    position: relative;
+    z-index: 2;
+}
+
+.step-number-trail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, 
+        rgba(58, 184, 248, 0.6) 0%, 
+        rgba(58, 184, 248, 0.8) 20%, 
+        rgba(58, 184, 248, 0.4) 40%, 
+        transparent 60%
+    );
+    animation: dropTrailEffect 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    transform: translateY(-100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes dropIn {
+    0% {
+        transform: translateY(-100vh);
+    }
+    70% {
+        transform: translateY(-10px);
+    }
+    85% {
+        transform: translateY(5px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+@keyframes dropTrailEffect {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    70% {
+        transform: translateY(0%);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+/* Step number glow effect */
+.step-number::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: radial-gradient(circle, 
+        rgba(58, 184, 248, 0.2) 0%, 
+        rgba(58, 184, 248, 0.1) 50%, 
+        transparent 70%
+    );
+    border-radius: 50%;
+    animation: numberGlow 2s ease-in-out infinite;
+    animation-delay: 1s;
+    z-index: 0;
+}
+
+@keyframes numberGlow {
+    0%, 100% {
+        opacity: 0;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+/* Step 3 Progress Styling */
+.progress-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 20px;
+}
+
+.progress-bar-container {
+    width: 80%;
+    height: 20px;
+}
+
+.large-progress-bar {
+    width: 100% !important;
+    height: 20px !important;
+}
+
+.large-progress-bar .bp5-progress-bar {
+    height: 20px !important;
+    border-radius: 10px !important;
+    background-color: rgba(58, 184, 248, 0.1) !important;
+}
+
+.large-progress-bar .bp5-progress-meter {
+    background: linear-gradient(90deg, #3ab8f8, #2da3e0) !important;
+    border-radius: 10px !important;
+    transition: width 0.5s ease !important;
+    position: relative;
+}
+
+.large-progress-bar .bp5-progress-meter::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(255, 255, 255, 0.3) 50%, 
+        transparent 100%
+    );
+    border-radius: 10px;
+    animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0%, 100% {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+    50% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.progress-text-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+}
+
+.progress-percentage {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #3ab8f8;
+    text-shadow: 0 0 10px rgba(58, 184, 248, 0.3);
+}
+
+.progress-details {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #2a2a2a;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.progress-time {
+    font-size: 0.9rem;
+    color: #666;
+    font-style: italic;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Responsive adjustments for Step 3 */
+@media (max-width: 768px) {
+    .progress-bar-container {
+        width: 90%;
+        height: 16px;
+    }
+    
+    .large-progress-bar {
+        height: 16px !important;
+    }
+    
+    .large-progress-bar .bp5-progress-bar {
+        height: 16px !important;
+    }
+    
+    .progress-percentage {
+        font-size: 2rem;
+    }
+    
+    .progress-details {
+        font-size: 1rem;
+    }
+}
+
+/* All button styling */
+.all-button {
+    background-color: transparent !important;
+    border: 2px solid #3ab8f8 !important;
+    color: #3ab8f8 !important;
+    position: relative;
+    transition: all 0.2s ease !important;
+}
+
+.all-button:hover {
+    background-color: rgba(58, 184, 248, 0.1) !important;
+    border-color: #3ab8f8 !important;
+    color: #3ab8f8 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(58, 184, 248, 0.3) !important;
+}
+
+.all-button-active {
+    background-color: #3ab8f8 !important;
+    border-color: #3ab8f8 !important;
+    color: white !important;
+    box-shadow: 0 2px 4px rgba(58, 184, 248, 0.4) !important;
+}
+
+.all-button-active:hover {
+    background-color: #2da3e0 !important;
+    border-color: #2da3e0 !important;
+    color: white !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(58, 184, 248, 0.5) !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .step-number {
+        font-size: 2.5rem;
+    }
+    
+    /* Mobile step header adjustments */
+    .top-section-1 {
+        padding: 0 20px;
+        justify-content: center;
+    }
+    
+    .top-section-1 > div {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .top-section-1 h1 {
+        width: 100%;
+        text-align: center;
+        padding: 0 10px;
+    }
+    
+    .top-section-1 h1 > div {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+    }
+    
+    .step-number-container {
+        flex-shrink: 0;
+    }
+    
+    .top-section-1 p {
+        width: 100%;
+        text-align: center;
+        padding: 0 10px;
+        margin-top: 10px;
+    }
+    
+    /* Mobile container adjustments */
+    .container {
+        gap: 10px;
+        padding-bottom: 80px; /* Account for bottom bar */
+    }
+    
+    /* Mobile section sizing */
+    .top-section-1 {
+        height: 15vh;
+        padding-top: 1vh;
+        flex-shrink: 0;
+    }
+    
+    .middle-section-1 {
+        height: 35vh;
+        flex-shrink: 0;
+    }
+    
+    .middle-section-2 {
+        height: 50vh;
+        flex-shrink: 0;
+        overflow-y: auto;
+        padding: 10px 0;
+    }
+    
+    .middle-section-3 {
+        height: 45vh;
+        flex-shrink: 0;
+    }
+    
+    /* Mobile filters adjustments */
+    .filters {
+        gap: 15px;
+        height: 100%;
+        overflow-y: auto;
+    }
+    
+    .filter {
+        flex-shrink: 0;
+    }
+    
+    .filter h3 {
+        margin-bottom: 8px;
+        font-size: 1.1rem;
+    }
+    
+    .filter p {
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+    }
+    
+    @keyframes dropIn {
+        0% {
+            transform: translateY(-100vh);
+        }
+        75% {
+            transform: translateY(-5px);
+        }
+        90% {
+            transform: translateY(2px);
+        }
+        100% {
+            transform: translateY(0);
+        }
+    }
+}

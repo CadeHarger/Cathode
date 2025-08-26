@@ -1,0 +1,91 @@
+/* Step Layout - Container and section positioning */
+
+.container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 15px;
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+.top-section-1 {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    height: 18vh;
+    padding-top: 2vh;
+}
+
+.top-section-2 {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    height: 10vh;
+    padding-top: 2vh;
+}
+
+.logo-1 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding-left: 2vh;
+}
+
+.home-1 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding-right: 2vh;
+    padding-top: 2vh;
+}
+
+.middle-section-1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80vw;
+    height: 30vh;
+}
+
+.middle-section-2 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    width: 80vw;
+    height: 50vh;
+}
+
+.middle-section-3 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 80vw;
+    height: 40vh;
+}
+
+.home-icon {
+    cursor: pointer;
+    transition: color 0.1s ease;
+}
+
+.home-icon:hover {
+    color: #16161688;
+}
+
+.home-icon:active {
+    color: #16161688;
+}

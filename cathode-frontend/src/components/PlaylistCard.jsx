@@ -1,30 +1,44 @@
 import React from 'react';
-import { Card, Elevation } from '@blueprintjs/core';
-import { ChevronDown } from '@blueprintjs/icons';
+import './PlaylistCard.css';
 
 function PlaylistCard({ p, onOpen, skeleton = false }) {
+
+  const formatGenres = (genres) => {
+    if (!genres || genres.length === 0) return 'Various Genres';
+    return genres.slice(0, 3).join(', ');
+  };
+
+  console.log(p);
+
   return (
-    <Card interactive={!skeleton} elevation={Elevation.ONE} onClick={skeleton ? undefined : () => onOpen(p.id)} className="p-3 rounded-xl shadow-md mb-3 cursor-pointer">
-      <div className="flex items-center gap-3">
-        <div className="grid grid-cols-2 gap-1 w-16 h-16">
-          {/* show up to 4 covers */}
+    <div className="playlist-card-wrapper" onClick={skeleton ? undefined : () => onOpen(p.id)}>
+      <div className="playlist-cover">
+        <div className="playlist-cover-grid">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={`${skeleton ? 'bp6-skeleton' : 'bg-slate-300'} rounded ${i === 0 ? 'col-span-2 row-span-2' : ''}`}></div>
+            <div 
+              key={i} 
+              className={`${skeleton ? 'bp6-skeleton' : 'playlist-cover-tile'} ${i === 0 ? 'tile-large' : ''}`}
+            />
           ))}
         </div>
-        <div className="flex-1">
-          <div className={`text-text-dark font-semibold ${skeleton ? 'bp6-skeleton' : ''}`}>
-            {skeleton ? '' : p.title}
+      </div>
+      <div className="bp6-card bp6-elevation-1 playlist-card">
+        <div className="playlist-main-content">
+          <div className="playlist-content-inner">
+            <div className="playlist-details-row">
+              <div className="playlist-info">
+                <div className={`playlist-title ${skeleton ? 'bp6-skeleton' : ''}`}>
+                  {skeleton ? '' : p.title}
+                </div>
+                <div className={`playlist-subtitle ${skeleton ? 'bp6-skeleton' : ''}`}>
+                  {skeleton ? '' : `${p.songs?.length ?? 0} songs • ${formatGenres(p.genres)}`}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className={`bp6-text-muted text-sm mt-1 ${skeleton ? 'bp6-skeleton' : ''}`}>
-            {skeleton ? '' : `${p.songs?.length ?? 0} songs • ${p.tagline ?? 'Cathartic mix'}`}
-          </div>
-        </div>
-        <div className="text-slate-500">
-          {!skeleton && <ChevronDown />}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 

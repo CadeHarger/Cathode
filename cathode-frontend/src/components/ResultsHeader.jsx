@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import Logo from './Logo';
 import { Home } from '@blueprintjs/icons';
+import Logo from './Logo';
 import { isMobile } from '../utils/helpers';
 import '../pages/styles/steps.css';
 
-function StepHeader({ stepNumber, title, subtitle, onCancel }) {
+function ResultsHeader({ playlist, onBack, onExport }) {
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   useEffect(() => {
@@ -12,7 +12,7 @@ function StepHeader({ stepNumber, title, subtitle, onCancel }) {
   }, []);
 
   return (
-    <div className="top-section-1">
+    <div className="top-section-2">
       {!isMobileDevice && (
         <div className="logo-1">
           <Logo animated={false} />
@@ -21,22 +21,24 @@ function StepHeader({ stepNumber, title, subtitle, onCancel }) {
       <div className="flex flex-col items-center justify-center height-100">
         <h1 className="bp6-heading text-text-dark font-bold text-xl mb-2">
           <div className="flex flex-row items-center justify-center gap-20">
-            <div className="step-number-container">
-              <div className="step-number-trail"></div>
-              <span className="step-number">{stepNumber}.</span>
+            <div className="results-icon-container">
+              <div className="results-icon-trail"></div>
+              <span className="results-icon">🎵</span>
             </div>
-            {title}
+            Your Playlist is Ready!
           </div>
         </h1>
-        {subtitle && <p className="bp6-text-muted">{subtitle}</p>}
+        <p className="bp6-text-muted text-center">
+          {playlist?.songs?.length || 0} songs curated for "{playlist?.title || 'your experience'}"
+        </p>
       </div>
       {!isMobileDevice && (
         <div className="home-1">
-          <Home onClick={onCancel} size={30} className="home-icon" />
+          <Home onClick={onBack} size={30} className="home-icon" />
         </div>
       )}
     </div>
   );
 }
 
-export default StepHeader;
+export default ResultsHeader;

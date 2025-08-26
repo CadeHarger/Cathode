@@ -1,0 +1,210 @@
+/* Song Card Wrapper - contains album cover and card */
+.song-card-wrapper {
+    display: flex;
+    align-items: stretch;
+    margin-bottom: 8px;
+    position: relative;
+    cursor: pointer;
+}
+
+/* Song Card Styling */
+.song-card {
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+    padding: 0 !important;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+.song-card-wrapper:hover .song-card {
+    border-color: rgba(58, 184, 248, 0.5);
+    box-shadow: 0 4px 16px rgba(58, 184, 248, 0.15);
+    transform: translateY(-1px);
+}
+
+.song-card-wrapper:hover .album-cover {
+    border-color: rgba(58, 184, 248, 0.5);
+    transform: translateY(-1px);
+}
+
+/* Hover glow effect */
+.song-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+        rgba(58, 184, 248, 0.05) 0%, 
+        rgba(58, 184, 248, 0.02) 50%, 
+        rgba(58, 184, 248, 0.05) 100%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    border-radius: 12px;
+}
+
+.song-card-wrapper:hover .song-card::before {
+    opacity: 1;
+}
+
+/* Album cover styling - completely separate from card */
+.album-cover {
+    width: 60px;
+    height: 60px;
+    border: 1px solid rgba(58, 184, 248, 0.2);
+    border-right: none;
+    border-top-left-radius: 12px;
+    border-bottom-left-radius: 12px;
+    background: linear-gradient(135deg, 
+        rgba(58, 184, 248, 0.1) 0%, 
+        rgba(58, 184, 248, 0.05) 100%
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.album-cover::after {
+    content: '♪';
+    font-size: 16px;
+    color: rgba(58, 184, 248, 0.4);
+    font-weight: bold;
+}
+
+/* Compact song info */
+.song-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.song-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 2px;
+    color: #2a2a2a;
+}
+
+.song-artist {
+    font-size: 0.85rem;
+    color: #666;
+    line-height: 1.2;
+    margin-bottom: 2px;
+}
+
+.song-duration {
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.song-score {
+    font-size: 0.85rem;
+    color: #3ab8f8;
+    font-weight: 600;
+}
+
+
+
+/* Main song card layout */
+.song-main-content {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    height: 60px;
+}
+
+.song-content-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px 12px;
+    gap: 2px;
+    height: 100%;
+}
+
+.song-details-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+}
+
+/* Collapse section styling */
+.song-details-collapse {
+    border-top: 1px solid rgba(58, 184, 248, 0.1);
+    padding: 12px;
+    font-size: 0.85rem;
+    color: #666;
+    background: rgba(58, 184, 248, 0.02);
+}
+
+.song-details-collapse .detail-row {
+    margin-bottom: 6px;
+}
+
+.song-details-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+
+
+/* Spotify icon styling */
+.spotify-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .song-card-wrapper {
+        margin-bottom: 6px;
+    }
+    
+    .album-cover {
+        width: 56px;
+        height: 56px;
+    }
+    
+    .song-content-inner {
+        padding: 6px 10px;
+    }
+    
+    .song-main-content {
+        height: 56px;
+    }
+    
+    .song-title {
+        font-size: 0.9rem;
+    }
+    
+    .song-artist {
+        font-size: 0.8rem;
+    }
+    
+    .song-duration {
+        font-size: 0.7rem;
+    }
+    
+    .song-score {
+        font-size: 0.8rem;
+    }
+    
+    .song-details-collapse {
+        padding: 10px;
+    }
+}
