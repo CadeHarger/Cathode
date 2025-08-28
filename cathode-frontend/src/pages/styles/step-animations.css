@@ -106,7 +106,7 @@
     overflow: visible; /* Changed to visible to prevent cutoff */
     min-height: 2em; /* Reduced height */
     height: auto; /* Allow dynamic height */
-    width: 80%; /* Take up 80% of screen width */
+    width: 80vw; /* Take up 80% of screen width */
     max-width: 800px; /* Maximum width for very large screens */
     min-width: 300px; /* Minimum width to prevent excessive wrapping */
     text-align: center;
@@ -171,29 +171,33 @@
 /* Responsive adjustments for pun container */
 @media (max-width: 768px) {
     .pun-container {
-        width: 85%; /* Slightly wider on tablets */
-        min-width: 250px; /* Smaller minimum width on tablets */
-        max-width: 600px; /* Reasonable max width for tablets */
+        width: 95%; /* Much wider on tablets to prevent word splitting */
+        min-width: 280px; /* Larger minimum width on tablets */
+        max-width: 650px; /* Larger max width for tablets */
+        min-height: 1.8em; /* Reduce vertical space */
     }
-    
+
     .pun-text {
-        padding: 0 15px; /* Reduced padding on mobile */
-        font-size: 0.95em; /* Slightly smaller text on mobile */
-        white-space: normal; /* Allow wrapping on smaller screens */
+        padding: 0 10px; /* Reduced padding on mobile */
+        font-size: 1em; /* Keep normal size on tablets */
+        white-space: nowrap; /* Prevent wrapping on tablets */
     }
 }
 
 @media (max-width: 480px) {
     .pun-container {
-        width: 90%; /* Even wider on mobile for better text display */
-        min-width: 200px; /* Even smaller minimum width on mobile */
-        max-width: 400px; /* Smaller max width for mobile */
-        min-height: 3em; /* Allow for potential wrapping */
+        width: 100%; /* Full width on mobile to prevent any word splitting */
+        min-width: 240px; /* Larger minimum width on mobile */
+        max-width: 500px; /* Larger max width for mobile */
+        min-height: 2.0em; /* Reduce vertical space further */
     }
-    
+
     .pun-text {
-        padding: 0 12px; /* Balanced padding on very small screens */
-        font-size: 0.9em; /* Smaller text on very small screens */
-        white-space: normal; /* Allow wrapping on mobile */
+        padding: 0 6px; /* Minimal padding on very small screens */
+        font-size: 0.95em; /* Slightly smaller text on very small screens */
+        white-space: normal; /* Allow wrapping only if absolutely necessary */
+        word-break: keep-all; /* Never split words */
+        overflow-wrap: break-word; /* Break only at spaces */
+        hyphens: none; /* Prevent hyphenation */
     }
 }

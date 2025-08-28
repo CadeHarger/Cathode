@@ -2,7 +2,6 @@
 // Organized with components and pages in separate files
 
 import React, { useState } from 'react';
-import MobileHeader from './components/MobileHeader';
 import Home from './pages/Home';
 import NewPlaylistFlow from './pages/NewPlaylistFlow';
 import ResultsView from './pages/ResultsView';

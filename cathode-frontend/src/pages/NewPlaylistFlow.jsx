@@ -9,6 +9,7 @@ function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
   const [prompt, setPrompt] = useState('');
   const [filters, setFilters] = useState({ genres: [], exploration: 3 });
   const [jobId, setJobId] = useState(null);
+  const [initialSongCount, setInitialSongCount] = useState(0);
   
   // Hooks for playlist creation and polling
   const { createPlaylist, isCreating, error: createError } = useCreatePlaylist();
@@ -19,8 +20,10 @@ function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
     result, 
     isCompleted, 
     isFailed, 
+    isCancelled,
     error: pollingError,
-    hasTimedOut 
+    hasTimedOut,
+    cancelJob
   } = useJobPolling(jobId);
 
   // Handle job completion
@@ -30,20 +33,25 @@ function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
     }
   }, [isCompleted, result, onCreated]);
 
-  // Handle job failure
+  // Handle job failure or cancellation
   useEffect(() => {
     if (isFailed || hasTimedOut) {
       const errorMsg = pollingError || createError || 'Failed to create playlist';
       alert(`${errorMsg} — please try again.`);
       setStep(2); // Go back to step 2
       setJobId(null);
+    } else if (isCancelled) {
+      // Job was cancelled, just reset without showing error
+      setStep(1); // Go back to step 1
+      setJobId(null);
     }
-  }, [isFailed, hasTimedOut, pollingError, createError]);
+  }, [isFailed, hasTimedOut, isCancelled, pollingError, createError]);
 
   async function handleCreate() {
     try {
-      const newJobId = await createPlaylist(prompt, filters);
+      const { jobId: newJobId, initialSongCount: songCount } = await createPlaylist(prompt, filters);
       setJobId(newJobId);
+      setInitialSongCount(songCount);
     } catch (err) {
       console.error('Failed to start playlist creation:', err);
       alert('Failed to start playlist creation — check your connection.');
@@ -84,6 +92,9 @@ function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
       message={message}
       status={status}
       isCreating={isCreating}
+      jobId={jobId}
+      initialSongCount={initialSongCount}
+      cancelJob={cancelJob}
       onBack={() => setStep(2)}
       onCancel={() => { 
         setStep(1); 

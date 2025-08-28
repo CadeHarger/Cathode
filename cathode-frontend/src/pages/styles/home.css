@@ -16,6 +16,8 @@
     align-items: stretch;
     justify-content: flex-start;
     gap: 5px;
+    overflow-y: auto; /* Allow vertical scrolling */
+    padding-bottom: 80px; /* Add space at the bottom */
 }
 
 .playlists-container h3 {

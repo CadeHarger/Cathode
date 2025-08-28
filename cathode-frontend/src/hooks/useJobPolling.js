@@ -3,11 +3,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const API_BASE_URL = 'http://localhost:8000';
 
 // Job status constants
-export const JOB_STATUS = {
+export const   JOB_STATUS = {
   PENDING: 'pending',
   IN_PROGRESS: 'in_progress',
   COMPLETED: 'completed',
-  FAILED: 'failed'
+  FAILED: 'failed',
+  CANCELLED: 'cancelled'
 };
 
 /**
@@ -60,8 +61,8 @@ export const useJobPolling = (jobId, options = {}) => {
       setJobStatus(data);
       setError(null);
 
-      // Stop polling if job is completed or failed
-      if (data.status === JOB_STATUS.COMPLETED || data.status === JOB_STATUS.FAILED) {
+      // Stop polling if job is completed, failed, or cancelled
+      if (data.status === JOB_STATUS.COMPLETED || data.status === JOB_STATUS.FAILED || data.status === JOB_STATUS.CANCELLED) {
         stopPolling();
       }
 
@@ -129,6 +130,32 @@ export const useJobPolling = (jobId, options = {}) => {
     return await fetchJobStatus();
   }, [fetchJobStatus]);
 
+  // Cancel job
+  const cancelJob = useCallback(async () => {
+    if (!jobId) return false;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/job/${jobId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Refresh job status after cancellation
+      await fetchJobStatus();
+      
+      return true;
+    } catch (err) {
+      console.error('Error cancelling job:', err);
+      setError(err.message);
+      return false;
+    }
+  }, [jobId, fetchJobStatus]);
+
   // Auto-start polling when jobId changes
   useEffect(() => {
     if (jobId && enabled) {
@@ -167,6 +194,7 @@ export const useJobPolling = (jobId, options = {}) => {
     isPolling,
     isCompleted: jobStatus?.status === JOB_STATUS.COMPLETED,
     isFailed: jobStatus?.status === JOB_STATUS.FAILED,
+    isCancelled: jobStatus?.status === JOB_STATUS.CANCELLED,
     isInProgress: jobStatus?.status === JOB_STATUS.IN_PROGRESS,
     isPending: jobStatus?.status === JOB_STATUS.PENDING,
     
@@ -181,7 +209,8 @@ export const useJobPolling = (jobId, options = {}) => {
     startPolling,
     stopPolling,
     restartPolling,
-    refresh
+    refresh,
+    cancelJob
   };
 };
 
@@ -214,7 +243,10 @@ export const useCreatePlaylist = () => {
       }
 
       const data = await response.json();
-      return data.job_id;
+      return {
+        jobId: data.job_id,
+        initialSongCount: data.initial_song_count,
+      };
     } catch (err) {
       console.error('Error creating playlist:', err);
       setError(err.message);

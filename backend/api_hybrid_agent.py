@@ -175,8 +175,11 @@ async def rerank_with_llm(user_experience: str, vector_results: List[Tuple[float
     
     return reranked_results
 
-async def run_hybrid_search_api(user_experience: str, genres: List[str], top_k: int = 8, 
-                               progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
+def create_vector_searcher():
+    """Wrapper function to instantiate VectorSearcher for threading."""
+    return VectorSearcher()
+
+async def run_hybrid_search_api(user_experience: str, genres: List[str], progress_callback: Optional[Callable] = None, top_k: int = 8) -> Dict[str, Any]:
     """
     API version of run_hybrid_search that returns structured data and accepts progress callback
     """
@@ -188,32 +191,41 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], top_k: 
         
         # Step 1: Initialize APIs and models
         spotify = initialize_apis()
-        vector_searcher = VectorSearcher()
-        gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+        vector_searcher = await asyncio.to_thread(create_vector_searcher)
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Get total dataset size for statistics
+        total_dataset_size = len(vector_searcher.all_metadata) if not vector_searcher.all_metadata.empty else 0
         
         if progress_callback:
-            await progress_callback(15, "Generating Spotify search queries...")
+            await progress_callback(10, f"Dataset loaded with {total_dataset_size:,} total songs")
         
         # Step 2: Generate search queries
-        queries = generate_spotify_queries(user_experience, genres, gemini_model, n_queries=5)
+        queries = await asyncio.to_thread(generate_spotify_queries, user_experience, genres, gemini_model, n_queries=5)
         if not queries:
             raise Exception("Could not generate search queries")
         
         if progress_callback:
-            await progress_callback(25, "Fetching candidate songs from Spotify...")
+            await progress_callback(20, "Fetching candidate songs from Spotify...")
         
         # Step 3: Get candidate songs from Spotify
-        candidate_songs = get_songs_from_spotify(queries, spotify, n_playlists=10)
+        candidate_songs = await asyncio.to_thread(get_songs_from_spotify, queries, spotify, n_playlists=10)
         if not candidate_songs:
             raise Exception("Could not find any songs on Spotify")
         
         if progress_callback:
-            await progress_callback(40, "Finding songs in local dataset...")
+            await progress_callback(30, f"Found {len(candidate_songs):,} candidate songs from Spotify")
+        
+        if progress_callback:
+            await progress_callback(35, "Finding songs in local dataset...")
         
         # Step 4: Find which songs are in our local dataset
-        songs_in_dataset = vector_searcher.find_songs_in_dataset(candidate_songs)
+        songs_in_dataset = await asyncio.to_thread(vector_searcher.find_songs_in_dataset, candidate_songs)
         if songs_in_dataset.empty:
             raise Exception("None of the candidate songs were found in the local dataset")
+        
+        if progress_callback:
+            await progress_callback(40, f"Found {len(songs_in_dataset):,} songs in local dataset")
         
         # Apply genre filter if provided
         if genres:
@@ -222,17 +234,22 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], top_k: 
                 songs_in_dataset = songs_in_dataset[songs_in_dataset['tag'].str.lower().isin(genres_lower)]
                 if songs_in_dataset.empty:
                     raise Exception(f"No songs found for the genres '{', '.join(genres)}'")
+                if progress_callback:
+                    await progress_callback(45, f"Filtered to {len(songs_in_dataset):,} songs for selected genres")
         
         if progress_callback:
-            await progress_callback(55, "Performing vector search...")
+            await progress_callback(50, "Performing vector search...")
         
         # Step 5: Perform vector search
-        vector_results = vector_searcher.search(user_experience, top_k=LLM_RERANK_COUNT, candidates=songs_in_dataset)
+        vector_results = await asyncio.to_thread(vector_searcher.search, user_experience, top_k=LLM_RERANK_COUNT, candidates=songs_in_dataset)
         if not vector_results:
             raise Exception("No results from vector search")
         
         if progress_callback:
-            await progress_callback(70, "Analyzing lyrics with AI...")
+            await progress_callback(60, f"Vector search returned {len(vector_results):,} candidates")
+        
+        if progress_callback:
+            await progress_callback(70, f"Reranking {len(vector_results)} songs with AI analysis...")
         
         # Step 6: Re-rank with LLM
         final_recommendations = await rerank_with_llm(user_experience, vector_results, songs_in_dataset, gemini_model, progress_callback)

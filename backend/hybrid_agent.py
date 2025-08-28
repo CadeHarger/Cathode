@@ -167,8 +167,8 @@ def initialize_apis():
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
     
     # Configure Spotify
-    spotify_client_id = os.getenv("SPOTIPY_CLIENT_ID")
-    spotify_client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
+    spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID")
+    spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
     spotify_auth_manager = SpotifyClientCredentials(client_id=spotify_client_id, client_secret=spotify_client_secret)
     spotify = spotipy.Spotify(auth_manager=spotify_auth_manager)
     

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from api_hybrid_agent import run_hybrid_search_api
+from vector_search import VectorSearcher
 
 # Job status enum
 class JobStatus(str, Enum):
@@ -17,11 +18,16 @@ class JobStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 # Request/Response models
 class PlaylistRequest(BaseModel):
     prompt: str
     filters: Dict[str, Any]  # Contains genres list and exploration level
+
+class CreateJobResponse(BaseModel):
+    job_id: str
+    initial_song_count: int
 
 class PlaylistResponse(BaseModel):
     id: str
@@ -41,6 +47,9 @@ class JobStatusResponse(BaseModel):
 
 # Global job storage (in production, use Redis or database)
 jobs_store: Dict[str, Dict[str, Any]] = {}
+
+# Store background tasks for cancellation
+active_tasks: Dict[str, asyncio.Task] = {}
 
 app = FastAPI(title="Cathode Playlist API", version="1.0.0")
 
@@ -66,9 +75,16 @@ def update_job_progress(job_id: str, progress: int, message: str, status: JobSta
 async def process_playlist_creation(job_id: str, prompt: str, genres: List[str]):
     """Background task to process playlist creation"""
     try:
-        # Create progress callback function
+        # Create progress callback function that checks for cancellation
         async def progress_callback(progress: int, message: str):
+            # Check if job was cancelled
+            if job_id in jobs_store and jobs_store[job_id]["status"] == JobStatus.CANCELLED:
+                raise asyncio.CancelledError("Job was cancelled by user")
             update_job_progress(job_id, progress, message)
+        
+        # Check for cancellation before starting
+        if job_id in jobs_store and jobs_store[job_id]["status"] == JobStatus.CANCELLED:
+            return
         
         # Run the actual hybrid search
         search_result = await run_hybrid_search_api(
@@ -89,6 +105,10 @@ async def process_playlist_creation(job_id: str, prompt: str, genres: List[str])
             songs=search_result["songs"]
         )
         
+        # Check one more time before marking as completed
+        if job_id in jobs_store and jobs_store[job_id]["status"] == JobStatus.CANCELLED:
+            return
+        
         # Mark job as completed
         jobs_store[job_id].update({
             "status": JobStatus.COMPLETED,
@@ -98,27 +118,45 @@ async def process_playlist_creation(job_id: str, prompt: str, genres: List[str])
             "updated_at": datetime.now()
         })
         
+    except asyncio.CancelledError:
+        # Job was cancelled, don't update status (it's already CANCELLED)
+        print(f"Job {job_id} was cancelled during execution")
+        
     except Exception as e:
-        # Mark job as failed
-        jobs_store[job_id].update({
-            "status": JobStatus.FAILED,
-            "progress": 0,
-            "message": "Failed to create playlist",
-            "error": str(e),
-            "updated_at": datetime.now()
-        })
+        # Only mark as failed if not already cancelled
+        if job_id in jobs_store and jobs_store[job_id]["status"] != JobStatus.CANCELLED:
+            jobs_store[job_id].update({
+                "status": JobStatus.FAILED,
+                "progress": 0,
+                "message": "Failed to create playlist",
+                "error": str(e),
+                "updated_at": datetime.now()
+            })
+    finally:
+        # Clean up background task reference
+        if job_id in active_tasks:
+            del active_tasks[job_id]
 
-@app.post("/api/playlist", response_model=Dict[str, str])
+@app.post("/api/playlist", response_model=CreateJobResponse)
 async def create_playlist(request: PlaylistRequest, background_tasks: BackgroundTasks):
     """Start playlist creation job"""
     job_id = str(uuid.uuid4())
     
+    # Initialize VectorSearcher temporarily to get the total song count
+    # This is a bit inefficient but ensures the frontend has the count immediately.
+    try:
+        temp_searcher = VectorSearcher()
+        initial_song_count = len(temp_searcher.all_metadata)
+        del temp_searcher
+    except Exception:
+        initial_song_count = 0
+
     # Initialize job in store
     jobs_store[job_id] = {
         "job_id": job_id,
         "status": JobStatus.PENDING,
         "progress": 0,
-        "message": "Job queued",
+        "message": f"Dataset loaded with {initial_song_count:,} total songs",
         "result": None,
         "error": None,
         "created_at": datetime.now(),
@@ -126,11 +164,12 @@ async def create_playlist(request: PlaylistRequest, background_tasks: Background
         "request": request.dict()
     }
     
-    # Start background task
+    # Create and store the background task for cancellation
     genres = request.filters.get("genres", [])
-    background_tasks.add_task(process_playlist_creation, job_id, request.prompt, genres)
+    task = asyncio.create_task(process_playlist_creation(job_id, request.prompt, genres))
+    active_tasks[job_id] = task
     
-    return {"job_id": job_id}
+    return {"job_id": job_id, "initial_song_count": initial_song_count}
 
 @app.get("/api/job/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
@@ -150,6 +189,39 @@ async def get_job_status(job_id: str):
         created_at=job_data["created_at"],
         updated_at=job_data["updated_at"]
     )
+
+@app.delete("/api/job/{job_id}")
+async def cancel_job(job_id: str):
+    """Cancel a job and stop its computation"""
+    if job_id not in jobs_store:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job_data = jobs_store[job_id]
+    
+    # Only cancel if job is still running
+    if job_data["status"] in [JobStatus.PENDING, JobStatus.IN_PROGRESS]:
+        # Update job status first
+        jobs_store[job_id].update({
+            "status": JobStatus.CANCELLED,
+            "progress": 0,
+            "message": "Job cancelled by user",
+            "updated_at": datetime.now()
+        })
+        
+        # Cancel the actual background task if it exists
+        if job_id in active_tasks:
+            task = active_tasks[job_id]
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass  # Expected when cancelling
+            del active_tasks[job_id]
+        
+        return {"message": "Job cancelled successfully"}
+    else:
+        return {"message": f"Job is already {job_data['status']}, cannot cancel"}
 
 @app.get("/api/jobs", response_model=List[JobStatusResponse])
 async def list_jobs():

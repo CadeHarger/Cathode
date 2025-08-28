@@ -41,8 +41,12 @@
     .top-section-1 p {
         width: 100%;
         text-align: center;
-        padding: 0 10px;
-        margin-top: 10px;
+        padding: 0 20px;
+        margin-top: 15px;
+        line-height: 1.5;
+        font-size: 0.9rem;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
     /* Mobile container adjustments */
@@ -53,13 +57,13 @@
     
     /* Mobile section sizing */
     .top-section-1 {
-        height: 15vh;
+        height: 22vh;
         padding-top: 1vh;
         flex-shrink: 0;
     }
     
     .middle-section-1 {
-        height: 35vh;
+        height: 25vh;
         flex-shrink: 0;
     }
     
@@ -68,11 +72,15 @@
         flex-shrink: 0;
         overflow-y: auto;
         padding: 10px 0;
+        width: 95vw;
+        max-width: 95vw;
     }
     
     .middle-section-3 {
-        height: 45vh;
+        height: 52vh;
         flex-shrink: 0;
+        padding: 15px 0;
+        overflow-y: auto;
     }
     
     /* Mobile filters adjustments */
@@ -80,10 +88,14 @@
         gap: 15px;
         height: 100%;
         overflow-y: auto;
+        padding: 0 10px;
+        width: 100%;
     }
     
     .filter {
         flex-shrink: 0;
+        width: 100%;
+        padding: 0 5px;
     }
     
     .filter h3 {
@@ -94,28 +106,86 @@
     .filter p {
         margin-bottom: 8px;
         font-size: 0.85rem;
+        padding-right: 10px;
     }
     
-    /* Mobile progress bar adjustments */
+    /* Mobile button group wrapping */
+    .filter .bp5-button-group {
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .filter .bp5-button-group .bp5-button {
+        flex: 0 0 auto;
+        min-width: 60px;
+        font-size: 0.85rem;
+        padding: 6px 12px;
+        margin: 0;
+    }
+    
+    /* Mobile slider container */
+    .filter div[style*="marginLeft"] {
+        width: calc(100% - 20px) !important;
+        margin-left: 10px !important;
+        margin-right: 10px !important;
+        padding-right: 10px;
+    }
+    
+        /* Mobile progress bar adjustments */
+    .progress-container {
+        gap: 15px;
+        padding: 10px 0;
+    }
+
     .progress-bar-container {
-        width: 90%;
-        height: 16px;
+        width: 95%;
+        height: 18px;
+        margin-bottom: 15px;
     }
-    
+
     .large-progress-bar {
-        height: 16px !important;
+        height: 18px !important;
     }
-    
+
     .large-progress-bar .bp5-progress-bar {
-        height: 16px !important;
+        height: 18px !important;
     }
-    
+
     .progress-percentage {
-        font-size: 2rem;
+        font-size: 2.2rem;
+        margin-bottom: 8px;
+        line-height: 1.2;
+        padding-bottom: 5px;
     }
-    
+
     .progress-details {
-        font-size: 1rem;
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+        line-height: 1.3;
+        min-height: 1.5em;
+        display: block;
+        visibility: visible;
+    }
+
+    .progress-text-container {
+        padding: 12px 0;
+        gap: 8px;
+        margin-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 80px;
+    }
+
+    .progress-time {
+        font-size: 0.85rem;
+        color: #666;
+        font-style: italic;
+        margin-top: 5px;
+        min-height: 1.2em;
     }
     
     /* Mobile animation adjustments */

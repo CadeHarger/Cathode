@@ -37,6 +37,9 @@ function Step1DescribeExperience({ prompt, setPrompt, onCancel, onNext, onHome, 
           }}
         />
       </div>
+      <div className="bp6-text-muted text-center w-full max-w-[80vw] px-4">
+        {"You never logged in, so this data is completely anonymous."}
+      </div>
       <div className="flex justify-between items-center mt-4">
         <Button onClick={onCancel} text="Cancel" variant="minimal" size="large"/>
         <Button onClick={handleNext} intent="primary" text="Next" variant="outlined" size="large" disabled={prompt.trim().length < 1}/>
