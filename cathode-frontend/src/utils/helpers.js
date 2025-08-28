@@ -20,5 +20,7 @@ export const isMobile = () => {
 };
 
 // Backend endpoints (adjust when you deploy backend)
-export const API_CREATE_PLAYLIST = '/api/playlist'; // POST { prompt, filters } -> { id, title, songs: [...] }
-export const API_GET_PLAYLIST = (id) => `/api/playlist/${id}`; // GET
+export const API_BASE_URL = 'http://localhost:8000';
+export const API_CREATE_PLAYLIST = `${API_BASE_URL}/api/playlist`; // POST { prompt, filters } -> { job_id }
+export const API_GET_JOB_STATUS = (jobId) => `${API_BASE_URL}/api/job/${jobId}`; // GET job status
+export const API_GET_PLAYLIST = (id) => `/api/playlist/${id}`; // GET (legacy)

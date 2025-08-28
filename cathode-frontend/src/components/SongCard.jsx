@@ -4,10 +4,11 @@ import { formatDuration } from '../utils/helpers';
 import SpotifyIcon from '../assets/Spotify-Icon.png';
 import './SongCard.css';
 
-function SongCard({ s }) {
+function SongCard({ s, skeleton = false }) {
   const [open, setOpen] = useState(false);
 
   const handleCardClick = () => {
+    if (skeleton) return; // Prevent interaction when in skeleton mode
     setOpen((v) => !v);
   };
 
@@ -16,6 +17,28 @@ function SongCard({ s }) {
     // TODO: Implement Spotify functionality
     console.log('Open in Spotify:', s);
   };
+
+  if (skeleton) {
+    return (
+      <div className="song-card-wrapper">
+        <div className="album-cover bp6-skeleton"></div>
+        <div className="bp6-card bp6-elevation-1 song-card">
+          <div className="song-main-content">
+            <div className="song-content-inner">
+              <div className="song-details-row">
+                <div className="song-info">
+                  <div className="song-title bp6-skeleton"></div>
+                  <div className="song-artist bp6-skeleton"></div>
+                  <div className="song-duration bp6-skeleton"></div>
+                </div>
+                <div className="song-score bp6-skeleton"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="song-card-wrapper" onClick={handleCardClick}>

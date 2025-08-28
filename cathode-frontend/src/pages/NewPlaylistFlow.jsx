@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { API_CREATE_PLAYLIST } from '../utils/helpers';
+import { useCreatePlaylist, useJobPolling } from '../hooks/useJobPolling';
 import Step1DescribeExperience from './Step1DescribeExperience';
 import Step2SelectFilters from './Step2SelectFilters';
 import Step3Progress from './Step3Progress';
@@ -8,58 +8,45 @@ function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
   const [step, setStep] = useState(1);
   const [prompt, setPrompt] = useState('');
   const [filters, setFilters] = useState({ genres: [], exploration: 3 });
-  const [progress, setProgress] = useState(0);
-  const [isCreating, setCreating] = useState(false);
+  const [jobId, setJobId] = useState(null);
+  
+  // Hooks for playlist creation and polling
+  const { createPlaylist, isCreating, error: createError } = useCreatePlaylist();
+  const { 
+    progress, 
+    status, 
+    message, 
+    result, 
+    isCompleted, 
+    isFailed, 
+    error: pollingError,
+    hasTimedOut 
+  } = useJobPolling(jobId);
 
+  // Handle job completion
   useEffect(() => {
-    let t;
-    if (isCreating && progress < 100) {
-      t = setInterval(() => setProgress(10));// ((p) => Math.min(100, p + Math.random() * 12)), 400);
+    if (isCompleted && result) {
+      onCreated(result);
     }
-    return () => clearInterval(t);
-  }, [isCreating, progress]);
+  }, [isCompleted, result, onCreated]);
+
+  // Handle job failure
+  useEffect(() => {
+    if (isFailed || hasTimedOut) {
+      const errorMsg = pollingError || createError || 'Failed to create playlist';
+      alert(`${errorMsg} — please try again.`);
+      setStep(2); // Go back to step 2
+      setJobId(null);
+    }
+  }, [isFailed, hasTimedOut, pollingError, createError]);
 
   async function handleCreate() {
-    setCreating(true);
-    setProgress(5);
     try {
-      // Integrate with your backend
-      // const res = await fetch(API_CREATE_PLAYLIST, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ prompt, filters }),
-      // });
-      // const data = await res.json();
-
-      // For quick demo, we fake a response
-      await new Promise((r) => setTimeout(r, 1200));
-      setProgress(65);
-      await new Promise((r) => setTimeout(r, 900));
-      setProgress(95);
-      await new Promise((r) => setTimeout(r, 400));
-
-      const data = {
-        id: Date.now().toString(),
-        title: prompt.slice(0, 30) || 'Untitled playlist',
-        genres: filters.genres,
-        songs: Array.from({ length: 8 }).map((_, i) => ({
-          id: `s-${i}`,
-          title: `Song ${i + 1}`,
-          artist: `Artist ${i + 1}`,
-          duration_ms: 180000 + i * 10000,
-          score: Math.random(),
-          album: 'Album X',
-          streams: Math.floor(Math.random() * 1e6),
-        })),
-      };
-
-      setProgress(100);
-      setCreating(false);
-      onCreated(data);
+      const newJobId = await createPlaylist(prompt, filters);
+      setJobId(newJobId);
     } catch (err) {
-      console.error(err);
-      setCreating(false);
-      alert('Failed to create playlist — check your connection.');
+      console.error('Failed to start playlist creation:', err);
+      alert('Failed to start playlist creation — check your connection.');
     }
   }
 
@@ -94,8 +81,14 @@ function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
   return (
     <Step3Progress 
       progress={progress}
+      message={message}
+      status={status}
+      isCreating={isCreating}
       onBack={() => setStep(2)}
-      onCancel={() => { setStep(1); setProgress(0); }}
+      onCancel={() => { 
+        setStep(1); 
+        setJobId(null);
+      }}
       onHome={onHome}
       onAbout={onAbout}
     />

@@ -13,9 +13,10 @@ const puns = [
   "Sorry for the watt",
 ]
 
-function Step3Progress({ progress, onBack, onCancel, onHome, onAbout }) {
+function Step3Progress({ progress = 0, message = '', status = 'pending', isCreating = false, onBack, onCancel, onHome, onAbout }) {
   const [punIndex, setPunIndex] = useState(0);
   const [searchedSongs, setSearchedSongs] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
   
   // Calculate songs searched based on progress (simulate backend data)
   useEffect(() => {
@@ -27,7 +28,13 @@ function Step3Progress({ progress, onBack, onCancel, onHome, onAbout }) {
 
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setPunIndex((prevIndex) => (prevIndex + 1) % puns.length);
+      setIsAnimating(true);
+      
+      // After exit animation completes, change the pun and trigger entrance animation
+      setTimeout(() => {
+        setPunIndex((prevIndex) => (prevIndex + 1) % puns.length);
+        setIsAnimating(false);
+      }, 400); // Match the exit animation duration
     }, 5000); // Rotate every 5 seconds
 
     return () => clearInterval(intervalId); // Cleanup on unmount
@@ -43,7 +50,15 @@ function Step3Progress({ progress, onBack, onCancel, onHome, onAbout }) {
         subtitle={currentMessage} 
         onCancel={onCancel} 
       />
-      <h1>{puns[punIndex]}</h1>
+      <h1>
+        {status === 'failed' ? 'Failure!' : (
+          <div className="pun-container">
+            <span className={`pun-text ${isAnimating ? 'exiting' : ''}`} key={punIndex}>
+              {puns[punIndex]}...
+            </span>
+          </div>
+        )}
+      </h1>
       
       <div className="middle-section-3">
         
@@ -63,7 +78,7 @@ function Step3Progress({ progress, onBack, onCancel, onHome, onAbout }) {
               {Math.round(progress)}%
             </div>
             <div className="progress-details">
-              Searching {searchedSongs.toLocaleString()} songs...
+              {message || `Searching ${searchedSongs.toLocaleString()} songs...`}
             </div>
             <div className="progress-time">
               ~{Math.max(0, 3 - Math.floor(progress / 40))} mins remaining
