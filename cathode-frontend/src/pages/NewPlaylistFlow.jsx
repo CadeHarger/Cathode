@@ -37,7 +37,7 @@ function NewPlaylistFlow({ onCancel, onCreated, onHome, onAbout }) {
   useEffect(() => {
     if (isFailed || hasTimedOut) {
       const errorMsg = pollingError || createError || 'Failed to create playlist';
-      alert(`${errorMsg} — please try again.`);
+      alert(`${errorMsg} — please try again later.`);
       setStep(2); // Go back to step 2
       setJobId(null);
     } else if (isCancelled) {

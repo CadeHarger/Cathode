@@ -10,6 +10,7 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from dotenv import load_dotenv
 from typing import List, Tuple, Optional, Callable, Dict, Any
+import pandas as pd
 import time
 import asyncio
 
@@ -111,11 +112,18 @@ def get_songs_from_spotify(queries: List[str], sp_client: spotipy.Spotify, n_pla
                 playlist_id = playlist['id']
                 
                 offset = 0
+                printed_for_playlist = False
                 while True:
                     playlist_tracks = sp_client.playlist_tracks(playlist_id, offset=offset)
                     if not playlist_tracks['items']:
                         break
                     
+                    if not printed_for_playlist:
+                        print(f"\n--- Songs from playlist: {playlist.get('name')} ---")
+                        for i, item in enumerate(playlist_tracks['items'][:10]):
+                            print(json.dumps(item.get('track'), indent=2))
+                        printed_for_playlist = True
+                        
                     for item in playlist_tracks['items']:
                         track = item.get('track')
                         if track and track['id'] not in song_ids:
@@ -219,10 +227,44 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], progres
         if progress_callback:
             await progress_callback(35, "Finding songs in local dataset...")
         
+        # Prepare Spotify tracks dataframe with normalized keys and URLs for merging
+        def _normalize(value: Optional[str]) -> str:
+            return (value or "").lower().strip()
+        
+        spotify_rows = []
+        for tr in candidate_songs:
+            if not tr:
+                continue
+            norm_title = _normalize(tr.get('name'))
+            artist_name = ""
+            try:
+                if tr.get('artists') and len(tr['artists']) > 0:
+                    first_artist = tr['artists'][0] or {}
+                    artist_name = _normalize(first_artist.get('name'))
+            except Exception:
+                artist_name = ""
+            spotify_rows.append({
+                'norm_title': norm_title,
+                'norm_artist': artist_name,
+                'spotify_url': (tr.get('external_urls') or {}).get('spotify'),
+                'spotify_track': tr,
+            })
+        spotify_tracks_df = pd.DataFrame(spotify_rows)
+        if not spotify_tracks_df.empty:
+            spotify_tracks_df.drop_duplicates(subset=['norm_title', 'norm_artist'], keep='first', inplace=True)
+        
         # Step 4: Find which songs are in our local dataset
         songs_in_dataset = await asyncio.to_thread(vector_searcher.find_songs_in_dataset, candidate_songs)
         if songs_in_dataset.empty:
             raise Exception("None of the candidate songs were found in the local dataset")
+        
+        # Merge spotify URL and full track object onto dataset matches for easy lookup later
+        if not spotify_tracks_df.empty:
+            songs_in_dataset = songs_in_dataset.merge(
+                spotify_tracks_df[['norm_title', 'norm_artist', 'spotify_url', 'spotify_track']],
+                on=['norm_title', 'norm_artist'],
+                how='left'
+            )
         
         if progress_callback:
             await progress_callback(40, f"Found {len(songs_in_dataset):,} songs in local dataset")
@@ -272,15 +314,30 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], progres
                 (songs_in_dataset['artist'] == artist)
             ].empty else None
             
+            spotify_url = song_row.get('spotify_url', None) if song_row is not None else None
+            
+            # Safely extract album image URL from merged Spotify track object
+            image_url = None
+            if song_row is not None:
+                spotify_track_obj = song_row.get('spotify_track', None)
+                if isinstance(spotify_track_obj, dict):
+                    album_obj = spotify_track_obj.get('album') or {}
+                    images_list = album_obj.get('images') or []
+                    if isinstance(images_list, list) and len(images_list) > 0 and isinstance(images_list[0], dict):
+                        image_url = images_list[0].get('url')
+            
             song_data = {
                 "id": f"song_{i}_{hash(f'{title}_{artist}') % 10000}",
                 "title": title,
                 "artist": artist,
                 "album": song_row.get('album', 'Unknown Album') if song_row is not None else 'Unknown Album',
+                "genre": song_row.get('tag', 'Unknown Genre') if song_row is not None else 'Unknown Genre',
                 "duration_ms": int(song_row.get('duration_ms', 180000)) if song_row is not None else 180000,
                 "score": float(combined_score),
                 "streams": int(views) if views else 0,
                 "llm_score": int(llm_score),
+                "url": spotify_url or "None",
+                "image_url": image_url,
                 "vector_score": float([vs for vs, t, a, _ in vector_results if t == title and a == artist][0]) if any(t == title and a == artist for _, t, a, _ in vector_results) else 0.0
             }
             songs.append(song_data)

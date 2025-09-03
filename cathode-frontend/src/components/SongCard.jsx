@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button, Collapse } from '@blueprintjs/core';
 import { formatDuration } from '../utils/helpers';
 import SpotifyIcon from '../assets/Spotify-Icon.png';
@@ -6,6 +6,7 @@ import './SongCard.css';
 
 function SongCard({ s, skeleton = false }) {
   const [open, setOpen] = useState(false);
+  const imgRef = useRef(null);
 
   const handleCardClick = () => {
     if (skeleton) return; // Prevent interaction when in skeleton mode
@@ -15,6 +16,7 @@ function SongCard({ s, skeleton = false }) {
   const handleSpotifyClick = (e) => {
     e.stopPropagation(); // Prevent card click when clicking Spotify button
     // TODO: Implement Spotify functionality
+    window.open(s.url, '_blank');
     console.log('Open in Spotify:', s);
   };
 
@@ -42,7 +44,21 @@ function SongCard({ s, skeleton = false }) {
 
   return (
     <div className="song-card-wrapper" onClick={handleCardClick}>
-      <div className="album-cover"></div>
+      <div className="album-cover">
+        {s?.image_url ? (
+          <img
+            ref={imgRef}
+            src={s.image_url}
+            alt={`${s.title} album cover`}
+            className="album-cover-img"
+            onError={(e) => {
+              if (e.currentTarget) {
+                e.currentTarget.style.display = 'none';
+              }
+            }}
+          />
+        ) : null}
+      </div>
       <div className="bp6-card bp6-elevation-1 song-card">
         <div className="song-main-content">
           <div className="song-content-inner">
