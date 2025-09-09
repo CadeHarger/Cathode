@@ -13,3 +13,4 @@ pydantic>=2.0.0
 spotipy>=2.22.0
 python-dotenv>=1.0.0
 peft>=0.17.1
+faiss-cpu>=1.7.4

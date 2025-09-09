@@ -20,6 +20,7 @@ LLM_WEIGHT = 0.3        # Weight for LLM score in final ranking (0.0 to 1.0)
 VECTOR_WEIGHT = 0.7     # Weight for vector similarity score in final ranking (0.0 to 1.0)
 
 from vector_search import VectorSearcher
+from data_manager import get_data_manager
 from llm_filter import rate_song_with_gemini, get_lyrics_for_candidates
 
 # Safety settings to avoid Gemini API blocking
@@ -187,7 +188,7 @@ def create_vector_searcher():
     """Wrapper function to instantiate VectorSearcher for threading."""
     return VectorSearcher()
 
-async def run_hybrid_search_api(user_experience: str, genres: List[str], progress_callback: Optional[Callable] = None, top_k: int = 8) -> Dict[str, Any]:
+async def run_hybrid_search_api(user_experience: str, genres: List[str], progress_callback: Optional[Callable] = None, top_k: int = 50) -> Dict[str, Any]:
     """
     API version of run_hybrid_search that returns structured data and accepts progress callback
     """
@@ -199,11 +200,12 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], progres
         
         # Step 1: Initialize APIs and models
         spotify = initialize_apis()
-        vector_searcher = await asyncio.to_thread(create_vector_searcher)
+        # Use preloaded DataManager instead of creating new VectorSearcher
+        data_manager = get_data_manager()
         gemini_model = genai.GenerativeModel('gemini-1.5-flash')
         
         # Get total dataset size for statistics
-        total_dataset_size = len(vector_searcher.all_metadata) if not vector_searcher.all_metadata.empty else 0
+        total_dataset_size = data_manager.get_total_songs()
         
         if progress_callback:
             await progress_callback(10, f"Dataset loaded with {total_dataset_size:,} total songs")
@@ -254,7 +256,7 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], progres
             spotify_tracks_df.drop_duplicates(subset=['norm_title', 'norm_artist'], keep='first', inplace=True)
         
         # Step 4: Find which songs are in our local dataset
-        songs_in_dataset = await asyncio.to_thread(vector_searcher.find_songs_in_dataset, candidate_songs)
+        songs_in_dataset = await asyncio.to_thread(data_manager.find_songs_in_dataset, candidate_songs)
         if songs_in_dataset.empty:
             raise Exception("None of the candidate songs were found in the local dataset")
         
@@ -282,8 +284,10 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], progres
         if progress_callback:
             await progress_callback(50, "Performing vector search...")
         
-        # Step 5: Perform vector search
-        vector_results = await asyncio.to_thread(vector_searcher.search, user_experience, top_k=LLM_RERANK_COUNT, candidates=songs_in_dataset)
+        # Step 5: Perform vector search using DataManager
+        vector_results_raw = await asyncio.to_thread(data_manager.search, user_experience, top_k=LLM_RERANK_COUNT, candidates=songs_in_dataset)
+        # Convert DataManager results to the expected format: (score, title, artist, views)
+        vector_results = [(r['score'], r['title'], r['artist'], r['views']) for r in vector_results_raw]
         if not vector_results:
             raise Exception("No results from vector search")
         

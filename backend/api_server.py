@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
 import json
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 
 from api_hybrid_agent import run_hybrid_search_api
 from vector_search import VectorSearcher
+from data_manager import initialize_data_manager, get_data_manager
 
 # Job status enum
 class JobStatus(str, Enum):
@@ -51,7 +53,32 @@ jobs_store: Dict[str, Dict[str, Any]] = {}
 # Store background tasks for cancellation
 active_tasks: Dict[str, asyncio.Task] = {}
 
-app = FastAPI(title="Cathode Playlist API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events for FastAPI"""
+    # Startup: Initialize data manager with preloaded embeddings and FAISS index
+    print("🚀 Starting Cathode Playlist API...")
+    print("📊 Loading embeddings and metadata into memory...")
+    print("🔍 Building FAISS index for fast vector search...")
+    
+    try:
+        initialize_data_manager()
+        data_manager = get_data_manager()
+        print(f"✅ Startup complete! Ready to serve {data_manager.get_total_songs():,} songs")
+    except Exception as e:
+        print(f"❌ Failed to initialize data manager: {e}")
+        raise
+    
+    yield
+    
+    # Shutdown
+    print("🛑 Shutting down Cathode Playlist API...")
+
+app = FastAPI(
+    title="Cathode Playlist API", 
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -142,12 +169,10 @@ async def create_playlist(request: PlaylistRequest, background_tasks: Background
     """Start playlist creation job"""
     job_id = str(uuid.uuid4())
     
-    # Initialize VectorSearcher temporarily to get the total song count
-    # This is a bit inefficient but ensures the frontend has the count immediately.
+    # Get the total song count from preloaded data manager
     try:
-        temp_searcher = VectorSearcher()
-        initial_song_count = len(temp_searcher.all_metadata)
-        del temp_searcher
+        data_manager = get_data_manager()
+        initial_song_count = data_manager.get_total_songs()
     except Exception:
         initial_song_count = 0
 
@@ -244,6 +269,16 @@ async def list_jobs():
 async def root():
     """Health check endpoint"""
     return {"message": "Cathode Playlist API is running"}
+
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint"""
+    return {
+        "status": "healthy",
+        "service": "Cathode Playlist API",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat()
+    }
 
 if __name__ == "__main__":
     import uvicorn

@@ -326,5 +326,27 @@ def main():
         print(f"An unexpected error occurred: {e}")
 
 
+def search_with_data_manager(user_query: str, top_k: int = 50, candidates: Optional[pd.DataFrame] = None):
+    """
+    Perform vector search using the global DataManager instance.
+    This is the preferred method for API usage as it uses preloaded data and FAISS index.
+    """
+    try:
+        from data_manager import get_data_manager
+        data_manager = get_data_manager()
+        
+        # Convert DataManager results to the format expected by existing code
+        results = data_manager.search(user_query, top_k, candidates)
+        
+        # Convert to the tuple format: (score, title, artist, views)
+        return [(r['score'], r['title'], r['artist'], r['views']) for r in results]
+        
+    except Exception as e:
+        print(f"Error in search_with_data_manager: {e}")
+        # Fallback to original VectorSearcher
+        searcher = VectorSearcher()
+        return searcher.search(user_query, top_k, candidates)
+
+
 if __name__ == "__main__":
     main()
