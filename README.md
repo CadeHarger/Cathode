@@ -4,6 +4,12 @@ Turn a life experience into a cathartic playlist! Cathode finds songs with simil
 
 `Cath(arsis) + Ode`
 
+This project was created by Cade Harger (myself) in fall 2025 A) because it's a cool project I wanted to use myself and B) because I wanted to teach myself how to vibe code better and understand just how far I could push the models.
+
+Looking back on it from mid-2026, it's amazing how far we've come. Generated backend code is much cleaner now, the frontend would be unrecognizably better if done today, and I would've done this project in a day (instead of about a 2-3 weeks, after work). 
+
+I learned a lot about vibe coding as I'd intended, and I really started to see the power of agents and how vector search combined with an LLM result-checker (RAG) was a powerful pattern. It was very satisfying to see how fast I went from idea to working prototype. I also was learning about GCP around this time, so I wanted to architect my first deployment and potentially share this app with my LinkedIn network. I ultimately decided against it after seeing the price tag for running these ML flows with some level of concurrent users. I learned a lot about cloud deployment doing that, and which services are for what. 
+
 ## How it works
 
 Gemini generates Spotify queries, candidate tracks are matched against a local lyrics corpus (~3M songs after filtering for duplicates/English), FAISS vector search ranks by semantic similarity, and Gemini re-ranks using full lyrics.
