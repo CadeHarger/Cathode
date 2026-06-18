@@ -9,19 +9,14 @@ import time
 from functools import lru_cache
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from load_model import load_finetuned_model
+from paths import get_data_dir
 
 
-# Source: 
-# https://www.kaggle.com/datasets/carlosgdcj/genius-song-lyrics-with-language-information
+# Source: https://www.kaggle.com/datasets/carlosgdcj/genius-song-lyrics-with-language-information
 
 
 def getViewsMultiplier(views: np.ndarray) -> np.ndarray:
     return 1.0 + ((np.log10(views) - 3.0) * 0.1)
-
-
-def _get_data_dir():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(current_dir, "data")
 
 
 def _load_metadata_chunk(data_dir: str, chunk_index: int) -> pd.DataFrame:
@@ -189,7 +184,7 @@ def _chunk_topk(
 
 class VectorSearcher:
     def __init__(self, data_dir: Optional[str] = None, model_name: str = "finetuned"):
-        self.data_dir = data_dir or _get_data_dir()
+        self.data_dir = data_dir or get_data_dir()
         if not os.path.isdir(self.data_dir):
             raise FileNotFoundError(f"Data directory not found: {self.data_dir}")
 
@@ -299,8 +294,7 @@ class VectorSearcher:
 
 
 def main():
-    # This main function is here for standalone testing of the vector search.
-    # The primary entry point for the application is main.py.
+    # Standalone testing of vector search. For the app, use start_server.py (API) or hybrid_agent.py (CLI).
     try:
         searcher = VectorSearcher()
         user_query = input("Enter your search query describing the song theme/mood:\n> ").strip()

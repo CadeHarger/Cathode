@@ -1,0 +1,4 @@
+# Offline data prep and training scripts (modify/, visualize/)
+tqdm>=4.64.0
+matplotlib>=3.7.0
+peft>=0.17.1

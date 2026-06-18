@@ -9,20 +9,14 @@ from typing import List, Tuple, Optional
 import time
 import asyncio
 
-# HYPERPARAMETERS
-LLM_RERANK_COUNT = 100  # Number of top vector search results to re-rank with LLM
-LLM_WEIGHT = 0.3        # Weight for LLM score in final ranking (0.0 to 1.0)
-VECTOR_WEIGHT = 0.7     # Weight for vector similarity score in final ranking (0.0 to 1.0)
-
-# 1. Generate 5 Spotify playlist search queries based on the user's experience.
-# 2. Get a list of candidate songs from Spotify playlists from the search queries.
-# 3. Filter to keep only the candidate songs that are in our local dataset.
-# 4. Perform vector search to get top candidates.
-# 5. Use LLM (Gemini) to re-rank the top candidates based on lyrical relevance.
-# 6. Return the final top 7 songs. 
-
+from config import GEMINI_MODEL
 from vector_search import VectorSearcher
 from llm_filter import rate_song_with_gemini, get_lyrics_for_candidates
+
+# HYPERPARAMETERS
+LLM_RERANK_COUNT = 100
+LLM_WEIGHT = 0.3
+VECTOR_WEIGHT = 0.7
 
 # Safety settings to avoid Gemini API blocking
 GEMINI_SAFETY_SETTINGS = [
@@ -162,17 +156,22 @@ async def rerank_with_llm(user_experience: str, vector_results: List[Tuple[float
 def initialize_apis():
     """Load environment variables and configure API clients."""
     load_dotenv()
-    
-    # Configure Gemini
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    
-    # Configure Spotify
+
+    google_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not google_api_key:
+        raise ValueError("Missing GEMINI_API_KEY or GOOGLE_API_KEY in environment variables")
+    genai.configure(api_key=google_api_key)
+
     spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID")
     spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-    spotify_auth_manager = SpotifyClientCredentials(client_id=spotify_client_id, client_secret=spotify_client_secret)
-    spotify = spotipy.Spotify(auth_manager=spotify_auth_manager)
-    
-    return spotify
+    if not spotify_client_id or not spotify_client_secret:
+        raise ValueError("Missing Spotify API credentials in environment variables")
+
+    spotify_auth_manager = SpotifyClientCredentials(
+        client_id=spotify_client_id,
+        client_secret=spotify_client_secret,
+    )
+    return spotipy.Spotify(auth_manager=spotify_auth_manager)
 
 def generate_spotify_queries(user_experience, genres, gemini_model, n_queries):
     """
@@ -287,7 +286,7 @@ async def run_hybrid_search(user_experience: str, genres: List[str], top_k: int 
     vector_searcher = VectorSearcher()
 
     # Step 2: Generate search queries
-    gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+    gemini_model = genai.GenerativeModel(GEMINI_MODEL)
     queries = generate_spotify_queries(user_experience, genres, gemini_model, n_queries)
     if not queries:
         print("Could not generate search queries. Exiting.")

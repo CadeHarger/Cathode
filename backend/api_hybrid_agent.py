@@ -3,7 +3,6 @@ Modified version of hybrid_agent.py that returns structured data for API use
 and accepts a progress callback function for real-time updates.
 """
 import os
-import sys
 import json
 import google.generativeai as genai
 import spotipy
@@ -14,14 +13,14 @@ import pandas as pd
 import time
 import asyncio
 
-# HYPERPARAMETERS
-LLM_RERANK_COUNT = 100  # Number of top vector search results to re-rank with LLM
-LLM_WEIGHT = 0.3        # Weight for LLM score in final ranking (0.0 to 1.0)
-VECTOR_WEIGHT = 0.7     # Weight for vector similarity score in final ranking (0.0 to 1.0)
-
-from vector_search import VectorSearcher
+from config import GEMINI_MODEL
 from data_manager import get_data_manager
 from llm_filter import rate_song_with_gemini, get_lyrics_for_candidates
+
+# HYPERPARAMETERS
+LLM_RERANK_COUNT = 100
+LLM_WEIGHT = 0.3
+VECTOR_WEIGHT = 0.7
 
 # Safety settings to avoid Gemini API blocking
 GEMINI_SAFETY_SETTINGS = [
@@ -184,10 +183,6 @@ async def rerank_with_llm(user_experience: str, vector_results: List[Tuple[float
     
     return reranked_results
 
-def create_vector_searcher():
-    """Wrapper function to instantiate VectorSearcher for threading."""
-    return VectorSearcher()
-
 async def run_hybrid_search_api(user_experience: str, genres: List[str], progress_callback: Optional[Callable] = None, top_k: int = 50) -> Dict[str, Any]:
     """
     API version of run_hybrid_search that returns structured data and accepts progress callback
@@ -202,7 +197,7 @@ async def run_hybrid_search_api(user_experience: str, genres: List[str], progres
         spotify = initialize_apis()
         # Use preloaded DataManager instead of creating new VectorSearcher
         data_manager = get_data_manager()
-        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        gemini_model = genai.GenerativeModel(GEMINI_MODEL)
         
         # Get total dataset size for statistics
         total_dataset_size = data_manager.get_total_songs()

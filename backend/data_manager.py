@@ -6,6 +6,7 @@ import faiss
 import pickle
 from sentence_transformers import SentenceTransformer
 from load_model import load_finetuned_model
+from paths import get_data_dir, CHUNK_INDICES, list_missing_chunks, format_chunk_status
 import logging
 
 # Configure logging
@@ -19,25 +20,28 @@ class DataManager:
     """
     
     def __init__(self, data_dir: Optional[str] = None, model_name: str = "finetuned"):
-        self.data_dir = data_dir or self._get_data_dir()
+        self.data_dir = data_dir or get_data_dir()
         self.model_name = model_name
         self.model = None
         self.embeddings = None
         self.metadata = None
         self.faiss_index = None
         self.embedding_dim = None
+        self.loaded_chunks: List[int] = []
+        self.missing_chunks: List[int] = []
         
         # Initialize everything
         self._load_model()
         self._load_all_data()
+        self.missing_chunks = list_missing_chunks()
+        print(f"Loaded {len(self.metadata)} songs ({format_chunk_status()})")
         self._build_faiss_index()
         
         logger.info(f"✅ DataManager initialized with {len(self.metadata)} songs and FAISS index")
     
     def _get_data_dir(self) -> str:
         """Get the data directory path"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(current_dir, "data")
+        return get_data_dir()
     
     def _load_model(self):
         """Load the sentence transformer model"""
@@ -83,39 +87,48 @@ class DataManager:
         
         all_embeddings = []
         all_metadata = []
-        
-        for chunk_idx in range(1, 5):  # Assuming chunks 1-4
+        loaded_chunks = []
+        skipped_chunks = []
+
+        for chunk_idx in CHUNK_INDICES:
             try:
-                # Load embeddings
                 embeddings_chunk = self._load_embeddings_chunk(chunk_idx)
-                
-                # Load metadata
                 metadata_chunk = self._load_metadata_chunk(chunk_idx)
-                
-                # Ensure they have the same length
+
                 min_len = min(len(metadata_chunk), embeddings_chunk.shape[0])
                 embeddings_chunk = embeddings_chunk[:min_len]
                 metadata_chunk = metadata_chunk.iloc[:min_len].copy()
-                
-                # Add chunk information for tracking
+
+                offset = sum(len(df) for df in all_metadata)
                 metadata_chunk['chunk_index'] = chunk_idx
-                metadata_chunk['global_index'] = len(all_metadata) + metadata_chunk.index
-                
+                metadata_chunk['global_index'] = offset + metadata_chunk.index
+
                 all_embeddings.append(embeddings_chunk)
                 all_metadata.append(metadata_chunk)
-                
+                loaded_chunks.append(chunk_idx)
                 logger.info(f"Loaded chunk {chunk_idx}: {len(metadata_chunk)} songs")
-                
+
             except FileNotFoundError:
-                logger.warning(f"Chunk {chunk_idx} not found, skipping")
+                skipped_chunks.append(chunk_idx)
+                logger.warning(f"Chunk {chunk_idx} not found or incomplete, skipping")
                 continue
-        
+
         if not all_embeddings:
-            raise RuntimeError("No data chunks found!")
+            raise RuntimeError(
+                "No data chunks found. Need at least one embeddings_chunk_*.npy "
+                "with matching other_columns_chunk_*.pkl or .csv"
+            )
+
+        if skipped_chunks:
+            logger.warning(
+                f"Running with partial dataset — skipped chunks: {skipped_chunks}. "
+                f"Loaded chunks: {loaded_chunks}"
+            )
         
         # Concatenate all chunks
         self.embeddings = np.vstack(all_embeddings).astype(np.float32)
         self.metadata = pd.concat(all_metadata, ignore_index=True)
+        self.loaded_chunks = loaded_chunks
         
         # Normalize embeddings
         self.embeddings = self._normalize_embeddings(self.embeddings)

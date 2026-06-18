@@ -1,0 +1,323 @@
+description: >
+  This file is a schema for the Cathode backend. It gives AI agents an overview of the project
+  and its files to make prompting easier. Cathode is a music playlist recommendation system that
+  turns a user's life experience into cathartic song picks. The core pipeline: Gemini generates
+  Spotify playlist queries → Spotify yields candidate tracks → intersect with a local lyrics dataset
+  (~5M songs from Kaggle Genius Song Lyrics) → vector search ranks by semantic similarity → Gemini
+  re-ranks by lyrical relevance. The FastAPI server exposes async job-based playlist creation for
+  the React frontend. Cloud deployment code is archived under ../archive/ (not maintained). If you are an
+  AI agent making changes to files, please update this schema if changes are significant enough to
+  be mentioned here.
+
+pipeline:
+  type: folder
+  description: >
+    Conceptual overview of the recommendation pipeline (not a real folder). Scoring formula:
+    combined = 0.7 * vector_score + 0.3 * (llm_score / 100), with a views popularity multiplier
+    applied at the vector stage (getViewsMultiplier in vector_search.py).
+  children:
+    step_1_query_generation:
+      type: concept
+      description: >
+        Gemini generates 5 Spotify search queries from the user's experience prompt and selected
+        genres. Implemented in generate_spotify_queries() in api_hybrid_agent.py / hybrid_agent.py.
+    step_2_spotify_discovery:
+      type: concept
+      description: >
+        Spotify API fetches tracks from generated queries (up to 10 playlists). Returns title,
+        artist, duration, album, streams, image_url, url. Implemented in get_songs_from_spotify().
+    step_3_dataset_intersection:
+      type: concept
+      description: >
+        Candidate tracks are matched against the local lyrics dataset by normalized title+artist.
+        DataManager.find_songs_in_dataset() (API) or VectorSearcher.find_songs_in_dataset() (CLI).
+    step_4_vector_search:
+      type: concept
+      description: >
+        User prompt is embedded and searched against precomputed lyric embeddings via FAISS
+        (API: in-memory DataManager) or chunked multiprocess search (CLI: VectorSearcher).
+    step_5_llm_rerank:
+      type: concept
+      description: >
+        Top 100 vector results are scored 0–100 by Gemini using full lyrics (loaded on demand from
+        song_lyrics_chunk_*.csv). Implemented in rerank_with_llm() + rate_song_with_gemini().
+
+api_server.py:
+  type: file
+  description: >
+    FastAPI HTTP server for async playlist generation with job tracking, progress updates, and
+    cancellation. In-memory jobs_store (not production-persistent). CORS allows localhost:5173 and
+    localhost:3000. Startup lifespan checks data/ exists then initializes DataManager.
+  exports:
+    - app (FastAPI application)
+    - JobStatus enum (pending, in_progress, completed, failed, cancelled)
+    - Pydantic models: PlaylistRequest, CreateJobResponse, PlaylistResponse, JobStatusResponse
+    - lifespan(), update_job_progress(), process_playlist_creation()
+  endpoints:
+    - "POST /api/playlist — start job, returns { job_id, initial_song_count }"
+    - "GET /api/job/{job_id} — poll status/progress/result"
+    - "DELETE /api/job/{job_id} — cancel running job"
+    - "GET /api/jobs — list all jobs (debug)"
+    - "GET / — root health message"
+    - "GET /health — structured health check"
+  dependencies:
+    - api_hybrid_agent.run_hybrid_search_api
+    - data_manager.initialize_data_manager, get_data_manager
+
+api_hybrid_agent.py:
+  type: file
+  description: >
+    API-adapted hybrid recommendation pipeline. Returns structured JSON with success/error, supports
+    async progress callbacks, and uses preloaded DataManager instead of VectorSearcher. Gemini model
+    from config.GEMINI_MODEL (gemini-2.0-flash). Default top_k=50 for API (vs 7 for CLI).
+  exports:
+    - combine_scores(vector_score, llm_score) — weighted 0.7/0.3 blend
+    - initialize_apis() — Spotify + Gemini clients from env vars
+    - generate_spotify_queries(user_experience, genres, gemini_model, n_queries=5)
+    - get_songs_from_spotify(queries, sp_client, n_playlists=10)
+    - rerank_with_llm(user_experience, vector_results, gemini_model, progress_callback)
+    - run_hybrid_search_api(user_experience, genres, progress_callback, top_k=50) — main entry
+  dependencies:
+    - data_manager.get_data_manager
+    - llm_filter.get_lyrics_for_candidates, rate_song_with_gemini
+    - spotipy, google.generativeai
+
+hybrid_agent.py:
+  type: file
+  description: >
+    CLI-oriented full recommendation pipeline (current production algorithm for local testing).
+    Uses VectorSearcher for chunked multiprocess vector search. Gemini model: gemini-2.5-flash.
+    Hyperparameters: LLM_RERANK_COUNT=100, LLM_WEIGHT=0.3, VECTOR_WEIGHT=0.7. Default top_k=7.
+  exports:
+    - combine_scores(), score_debug_songs(), rerank_with_llm()
+    - initialize_apis(), generate_spotify_queries(), get_songs_from_spotify()
+    - run_hybrid_search(user_experience, genres, top_k=7, n_queries=5, n_playlists=10, debug)
+  dependencies:
+    - vector_search.VectorSearcher
+    - llm_filter.rate_song_with_gemini, get_lyrics_for_candidates
+
+data_manager.py:
+  type: file
+  description: >
+    Production in-memory data layer for the API. Loads all embedding chunks and metadata at startup,
+    builds a FAISS IndexFlatIP index, and serves fast vector search without per-request disk I/O.
+    Falls back to all-mpnet-base-v2 if finetuned model unavailable.
+  exports:
+    - DataManager class — _load_model(), _load_all_data(), _build_faiss_index(), search(),
+      find_songs_in_dataset(), get_total_songs()
+    - get_data_manager(), initialize_data_manager(data_dir, model_name)
+  data_files:
+    - "data/embeddings_chunk_{1-4}.npy — 768-dim float16 lyric embeddings"
+    - "data/other_columns_chunk_{1-4}.csv or .pkl — title, artist, views, tag, year, language, chunk_index, original_index, global_index"
+  dependencies:
+    - load_model.load_finetuned_model
+    - faiss, sentence_transformers, pandas, numpy
+
+vector_search.py:
+  type: file
+  description: >
+    Standalone vector search over chunked embeddings. Used by CLI hybrid_agent.py and dev/testing.
+    Uses memory-mapped chunks and ProcessPoolExecutor for parallel per-chunk top-k search.
+    Includes views popularity multiplier: 1.0 + (log10(views) - 3.0) * 0.1.
+  exports:
+    - getViewsMultiplier(views)
+    - VectorSearcher class — search(), find_songs_in_dataset()
+    - search_with_data_manager() — bridge to API DataManager
+    - _chunk_topk() — per-chunk worker function
+  dependencies:
+    - load_model.load_finetuned_model
+    - data/embeddings_chunk_*.npy, data/other_columns_chunk_*
+
+llm_filter.py:
+  type: file
+  description: >
+    Lyrics retrieval and Gemini-based scoring for LLM re-ranking. Lyrics loaded on demand from
+    song_lyrics_chunk_{N}.csv by chunk_index + original_index (not kept in memory at startup).
+  exports:
+    - get_lyrics_for_candidates(candidates_df) — returns {(title, artist): lyrics}
+    - rate_song_with_gemini(user_query, title, artist, lyrics, gemini_model) — async 0–100 score
+    - filter_songs_with_llm(user_query, candidates_df, min_score=50) — standalone batch filter
+  dependencies:
+    - data/song_lyrics_chunk_*.csv
+    - google.generativeai
+
+load_model.py:
+  type: file
+  description: >
+    Loads the finetuned LoRA SentenceTransformer from models/mpnet_lyrics_lora/epoch_1.
+    Model files are gitignored; must be produced by modify/finetune_embeds.py.
+  exports:
+    - load_finetuned_model(model_path), get_model_info(model)
+    - is_finetuned_model_available(), get_finetuned_model_path()
+
+start_server.py:
+  type: file
+  description: Dev launcher for the FastAPI server via uvicorn on port 8000 with auto-reload.
+  dependencies:
+    - api_server.app
+
+data_cleaning.py:
+  type: file
+  description: >
+    Offline ETL script. Filters song chunks by year >= 1800 and language en/es, writes cleaned
+    copies to data/cleaned/.
+  exports:
+    - clean_data_chunks(source_dir='data', dest_dir='data/cleaned')
+
+requirements.txt:
+  type: file
+  description: >
+    Core deps: FastAPI, uvicorn, pandas, numpy, sentence-transformers, torch, google-generativeai,
+    spotipy, faiss-cpu, peft, python-dotenv.
+
+README.md:
+  type: file
+  description: >
+    Root project README. Setup, env vars, data pipeline, and run commands for frontend + backend.
+    Replaces former backend/SETUP.md and cathode-frontend/README.md.
+
+.gitignore:
+  type: file
+  description: Ignores /venv, /data, /models, __pycache__, .env.
+
+modify:
+  type: folder
+  description: Data preparation scripts for building the lyrics embedding dataset.
+  children:
+    get_embeds.py:
+      type: file
+      description: >
+        Batch-embeds lyrics from song_lyrics_chunk_{1-4}.csv using all-mpnet-base-v2. Saves
+        embeddings_chunk_{N}.npy (float16) and other_columns_chunk_{N}.pkl.
+      exports:
+        - load_and_embed_lyrics()
+    finetune_embeds.py:
+      type: file
+      description: >
+        Fine-tunes all-mpnet-base-v2 with LoRA (PEFT) on lyric pairs using
+        MultipleNegativesRankingLoss. Outputs to mpnet_lyrics_lora/. Includes streaming data
+        loading from chunked CSVs.
+      exports:
+        - train(), prepare_model_with_lora(), streaming_training_examples()
+        - build_positive_pairs_from_chunk(), build_synthetic_query_pairs()
+    split_song_lyrics_into_chunks.py:
+      type: file
+      description: >
+        Splits monolithic data/song_lyrics.csv into per-chunk CSVs aligned with existing
+        embeddings_chunk_{N}.npy row counts.
+      exports:
+        - split_song_lyrics_into_chunks()
+
+visualize:
+  type: folder
+  description: Dataset exploration utilities (not used in production pipeline).
+  children:
+    dataset_search.py:
+      type: file
+      description: >
+        Interactive CLI tool to search metadata by title/artist across other_columns_chunk CSVs.
+      exports:
+        - DatasetSearcher class (load_dataset, search_songs, interactive_search), main()
+    inspect_dataset.py:
+      type: file
+      description: Plots histogram of song view counts from PKL chunks.
+      exports:
+        - plot_views_histogram(), _load_views_from_pkls(), main()
+
+paths.py:
+  type: file
+  description: >
+    Shared path helpers: get_data_dir(), get_models_dir(), get_finetuned_model_path(),
+    data_files_present(), describe_missing_data(). Used by data_manager, llm_filter, vector_search,
+    load_model, and modify/ scripts.
+
+config.py:
+  type: file
+  description: Shared runtime config. GEMINI_MODEL constant used across API, CLI, and llm_filter.
+
+requirements-dev.txt:
+  type: file
+  description: Optional deps for offline scripts (peft, matplotlib, tqdm). Not needed to run the API.
+
+archive:
+  type: folder
+  description: >
+    Archived code at repo root ../archive/ — not part of active backend. Contains abandoned
+    cloud_deployment/ (GCP) and legacy playlistAgent.py. See archive/README.md.
+
+data:
+  type: folder
+  description: >
+    Gitignored dataset directory. Source: Kaggle Genius Song Lyrics with Language Information.
+    Expected per-chunk files (chunks 1–4, ~5M songs total). Must be downloaded/prepared locally.
+  children:
+    embeddings_chunk_N.npy:
+      type: file
+      description: Precomputed lyric embeddings (768-dim, normalized).
+    other_columns_chunk_N.csv:
+      type: file
+      description: Metadata CSV (title, artist, views, tag/genre, year, language, indices).
+    other_columns_chunk_N.pkl:
+      type: file
+      description: Pickled metadata (preferred over CSV when present).
+    song_lyrics_chunk_N.csv:
+      type: file
+      description: Full lyrics text (loaded on demand for LLM re-ranking).
+    song_lyrics.csv:
+      type: file
+      description: Source monolithic lyrics file before chunking.
+    cleaned:
+      type: folder
+      description: Output of data_cleaning.py (filtered en/es, year >= 1800).
+
+models:
+  type: folder
+  description: >
+    Gitignored. Finetuned LoRA model at models/mpnet_lyrics_lora/epoch_1. Produced by
+    modify/finetune_embeds.py.
+
+runtime_paths:
+  type: concept
+  description: How to run each backend entry point.
+  children:
+    api_local:
+      type: concept
+      description: "python start_server.py → api_server → api_hybrid_agent → DataManager (FAISS) + Gemini + Spotify"
+    cli_current:
+      type: concept
+      description: "python hybrid_agent.py → VectorSearcher (multiprocess) + Gemini + Spotify"
+
+api_contract:
+  type: concept
+  description: Request/response shapes shared with the frontend.
+  children:
+    PlaylistRequest:
+      type: concept
+      description: "{ prompt: str, filters: { genres: str[], exploration?: int } }"
+    CreateJobResponse:
+      type: concept
+      description: "{ job_id: str, initial_song_count: int }"
+    JobStatusResponse:
+      type: concept
+      description: >
+        "{ job_id, status, progress (0-100), message, result?: PlaylistResponse, error?, created_at, updated_at }"
+    PlaylistResponse:
+      type: concept
+      description: >
+        "{ id, title, genres: str[], songs: [{ id, title, artist, duration_ms, score, album, streams, image_url, url }] }"
+    Song_object:
+      type: concept
+      description: >
+        Each song in the result includes Spotify metadata plus a combined relevance score from
+        vector search and LLM re-ranking.
+
+notable_differences:
+  type: concept
+  description: Important API vs CLI differences.
+  children:
+    vector_search:
+      type: concept
+      description: VectorSearcher (chunked, mmap, multiprocess) for CLI; DataManager (all-in-memory FAISS) for API.
+    gemini_model:
+      type: concept
+      description: Both API and CLI use config.GEMINI_MODEL (gemini-2.0-flash).

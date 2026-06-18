@@ -6,10 +6,8 @@ import google.generativeai as genai
 from typing import List, Tuple, Dict
 from dotenv import load_dotenv
 
-def _get_data_dir():
-    """Get the data directory path."""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(current_dir, "data")
+from config import GEMINI_MODEL
+from paths import get_data_dir
 
 def _load_lyrics_chunk(data_dir: str, chunk_index: int) -> pd.DataFrame:
     """Load lyrics from a specific chunk."""
@@ -31,7 +29,7 @@ def get_lyrics_for_candidates(candidates_df: pd.DataFrame) -> Dict[Tuple[str, st
     if candidates_df.empty:
         return {}
     
-    data_dir = _get_data_dir()
+    data_dir = get_data_dir()
     lyrics_map = {}
     
     # Group candidates by chunk to minimize file I/O
@@ -167,7 +165,7 @@ async def filter_songs_with_llm(user_query: str, candidates_df: pd.DataFrame, mi
     # Initialize Gemini
     load_dotenv()
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite')
+    gemini_model = genai.GenerativeModel(GEMINI_MODEL)
     
     # Get lyrics for all candidates
     print("🎵 Retrieving lyrics for candidate songs...")

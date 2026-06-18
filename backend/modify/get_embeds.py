@@ -2,12 +2,16 @@ import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import os
+import sys
 from tqdm import tqdm
 import pickle
 import torch
 import gc
 from concurrent.futures import ThreadPoolExecutor
 import psutil
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from paths import get_data_dir
 
 def load_and_embed_lyrics():
     """
@@ -71,10 +75,13 @@ def load_and_embed_lyrics():
     
     print(f"Using batch size: {optimal_batch_size}")
     
+    data_dir = get_data_dir()
+    os.makedirs(data_dir, exist_ok=True)
+
     # Process each chunk file
     for chunk_idx in range(4):
         chunk_num = chunk_idx + 1
-        chunk_file = f'./data/song_lyrics_chunk_{chunk_num}.csv'
+        chunk_file = os.path.join(data_dir, f'song_lyrics_chunk_{chunk_num}.csv')
         
         print(f"\nProcessing chunk {chunk_num}/4...")
         print(f"Loading {chunk_file}...")
@@ -124,13 +131,12 @@ def load_and_embed_lyrics():
         print(f"Embeddings shape: {embeddings_array.shape}")
             
         # Save embeddings (float16 to reduce disk/IO and speed up loading)
-        embeddings_filename = f'./data/embeddings_chunk_{chunk_num}.npy'
+        embeddings_filename = os.path.join(data_dir, f'embeddings_chunk_{chunk_num}.npy')
         np.save(embeddings_filename, embeddings_array.astype(np.float16))
         print(f"Saved embeddings to {embeddings_filename}")
-        
+
         # Only save other columns if they don't already exist (avoid redundant I/O)
-        other_filename = f'./data/other_columns_chunk_{chunk_num}.csv'
-        pickle_filename = f'./data/other_columns_chunk_{chunk_num}.pkl'
+        pickle_filename = os.path.join(data_dir, f'other_columns_chunk_{chunk_num}.pkl')
         
         if not os.path.exists(pickle_filename):
             # Load other columns only when needed

@@ -15,15 +15,13 @@ from tqdm.auto import tqdm
 from multiprocessing import Pool
 import time
 
-# -------------------------
-# Config / hyperparameters
-# -------------------------
-def _get_data_dir() -> str:
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(current_dir, "data")
+import sys
 
-DATA_DIR = _get_data_dir()  # directory with lyric CSV/PKL files
-MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from paths import get_data_dir
+
+DATA_DIR = get_data_dir()
 OUT_DIR = "mpnet_lyrics_lora"
 EPOCHS = 3
 TRAIN_BATCH_SIZE = 18            # per device batch size

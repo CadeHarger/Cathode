@@ -6,9 +6,12 @@ import numpy as np
 import pandas as pd
 
 
-def _get_data_dir() -> str:
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(current_dir, "data")
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from paths import get_data_dir
 
 
 def _find_embeddings_chunks(data_dir: str) -> List[str]:
@@ -43,7 +46,7 @@ def _write_frame(path: str, df: pd.DataFrame, write_header: bool) -> None:
 
 
 def split_song_lyrics_into_chunks() -> None:
-    data_dir = _get_data_dir()
+    data_dir = get_data_dir()
     source_csv = os.path.join(data_dir, "song_lyrics.csv")
     if not os.path.exists(source_csv):
         raise FileNotFoundError(f"Missing source CSV: {source_csv}")

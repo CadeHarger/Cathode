@@ -116,7 +116,7 @@ async def process_playlist_creation(job_id: str, prompt: str, genres: List[str])
         search_result = await run_hybrid_search_api(
             user_experience=prompt,
             genres=genres,
-            top_k=8,
+            top_k=25,
             progress_callback=progress_callback
         )
         
@@ -281,4 +281,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8080, reload=True)

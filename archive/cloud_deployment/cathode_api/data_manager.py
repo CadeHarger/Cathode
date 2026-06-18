@@ -1,13 +1,13 @@
 import os
 import numpy as np
 import pandas as pd
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict
 import faiss
 import logging
-from google.cloud import aiplatform
-from google.cloud import bigquery
+from google.cloud import aiplatform, bigquery, storage
 from google.protobuf import json_format
 from google.protobuf.struct_pb2 import Value
+import io
 
 
 # Configure logging
@@ -20,18 +20,21 @@ class DataManager:
     Loads all data into memory on initialization for optimal performance.
     """
     
-    def __init__(self, data_dir: Optional[str] = None):
-        self.data_dir = data_dir or self._get_data_dir()
+    def __init__(self):
         self.embeddings = None
-        self.metadata = None
         self.faiss_index = None
         self.embedding_dim = None
+        self.song_ids = None # Will store BigQuery song IDs
         
         # GCP Project and Endpoint details
         self.gcp_project = "819206197072"
         self.gcp_endpoint_id = "6143915944872771584"
         self.gcp_location = "us-central1"
         self.api_endpoint = "us-central1-aiplatform.googleapis.com"
+
+        # GCS bucket for embeddings
+        self.gcs_bucket_name = "my-lyrics-data"
+        self.storage_client = storage.Client()
 
         # Initialize the Vertex AI client
         client_options = {"api_endpoint": self.api_endpoint}
@@ -41,59 +44,77 @@ class DataManager:
         self._load_all_data()
         self._build_faiss_index()
         
-        logger.info(f"✅ DataManager initialized with {len(self.metadata)} songs and FAISS index")
-    
-    def _get_data_dir(self) -> str:
-        """Get the data directory path"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        # The data folder is now in the same directory as this script.
-        return os.path.join(current_dir, "data")
+        logger.info(f"✅ DataManager initialized with {self.faiss_index.ntotal} songs and FAISS index")
     
     def _load_embeddings_chunk(self, chunk_index: int) -> np.ndarray:
-        """Load embeddings for a specific chunk"""
-        emb_path = os.path.join(self.data_dir, f"embeddings_chunk_{chunk_index}.npy")
-        if not os.path.exists(emb_path):
-            raise FileNotFoundError(f"Missing embeddings for chunk {chunk_index}: {emb_path}")
-        return np.load(emb_path)
+        """Load embeddings for a specific chunk from GCS"""
+        bucket = self.storage_client.bucket(self.gcs_bucket_name)
+        blob_name = f"embeddings_chunk_{chunk_index}.npy"
+        blob = bucket.blob(blob_name)
+
+        try:
+            # Download the contents of the blob as a bytes object.
+            logger.info(f"Downloading {blob_name} from GCS bucket {self.gcs_bucket_name}...")
+            content = blob.download_as_bytes()
+            # Use io.BytesIO to treat the bytes object as a file
+            return np.load(io.BytesIO(content))
+        except Exception as e:
+            raise FileNotFoundError(f"Missing or unable to load embeddings for chunk {chunk_index} from GCS bucket '{self.gcs_bucket_name}': {e}")
     
-    def _load_metadata_from_bigquery(self) -> pd.DataFrame:
-        """Load all song metadata from the BigQuery table."""
-        logger.info("Querying BigQuery for song metadata...")
+    def _get_metadata_for_ids(self, ids: List[int]) -> pd.DataFrame:
+        """Fetch song metadata for a list of specific song IDs from BigQuery."""
+        if not ids:
+            return pd.DataFrame()
+
+        logger.info(f"Fetching metadata for {len(ids)} song IDs from BigQuery...")
         try:
             client = bigquery.Client()
-            # Note: Make sure the service account has `BigQuery Data Viewer` and `BigQuery User` roles
+            # Use a query parameter to safely pass the list of IDs
             query = """
-            SELECT *
-            FROM `lyric_data.other_columns_merged`
-            ORDER BY id ASC
+                SELECT *
+                FROM `lyric_data.other_columns_merged`
+                WHERE id IN UNNEST(@ids)
             """
-            # API request and wait for completion
-            query_job = client.query(query)
-            results = query_job.result()
-            
-            # Convert to DataFrame
-            df = results.to_dataframe()
-            logger.info(f"Successfully loaded {len(df)} records from BigQuery")
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ArrayQueryParameter("ids", "INT64", ids),
+                ]
+            )
+            query_job = client.query(query, job_config=job_config)
+            df = query_job.to_dataframe()
+
+            # Set the 'id' column as the index for quick lookups
+            df.set_index('id', inplace=True)
             return df
 
         except Exception as e:
-            logger.error(f"Failed to query BigQuery: {e}")
+            logger.error(f"Failed to fetch metadata from BigQuery for IDs: {e}")
             raise RuntimeError("Could not load metadata from BigQuery.") from e
-    
+
     def _normalize_embeddings(self, embeddings: np.ndarray) -> np.ndarray:
         """Normalize embeddings to unit vectors"""
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
         return embeddings / norms
-    
+
     def _load_all_data(self):
-        """Load all embeddings and metadata into memory"""
-        logger.info("Loading all embeddings and metadata into memory...")
+        """
+        Load embeddings into memory and get song IDs from BigQuery.
+        Metadata is not loaded into memory.
+        """
+        logger.info("Loading embeddings into memory and fetching song IDs from BigQuery...")
         
-        # Load all metadata from BigQuery
-        self.metadata = self._load_metadata_from_bigquery()
-        
-        # Load all embedding chunks
+        # 1. Fetch only the song IDs from BigQuery, in the correct order
+        try:
+            client = bigquery.Client()
+            query = "SELECT id FROM `lyric_data.other_columns_merged` ORDER BY id ASC"
+            self.song_ids = client.query(query).to_dataframe()['id'].values.astype(np.int64)
+            logger.info(f"Fetched {len(self.song_ids)} song IDs from BigQuery.")
+        except Exception as e:
+            logger.error(f"Failed to fetch song IDs from BigQuery: {e}")
+            raise RuntimeError("Could not load song IDs from BigQuery.") from e
+
+        # 2. Load all embedding chunks from GCS
         all_embeddings = []
         for chunk_idx in range(1, 5):  # Assuming chunks 1-4
             try:
@@ -110,33 +131,29 @@ class DataManager:
         # Concatenate all embedding chunks
         self.embeddings = np.vstack(all_embeddings).astype(np.float32)
         
-        # Ensure metadata and embeddings align
-        min_len = min(len(self.metadata), len(self.embeddings))
-        self.metadata = self.metadata.iloc[:min_len].copy()
+        # 3. Ensure song IDs and embeddings align
+        min_len = min(len(self.song_ids), len(self.embeddings))
+        self.song_ids = self.song_ids[:min_len]
         self.embeddings = self.embeddings[:min_len]
         
-        # Add a global index for tracking
-        self.metadata['global_index'] = range(len(self.metadata))
-
-        # Normalize embeddings
+        # 4. Normalize embeddings
         self.embeddings = self._normalize_embeddings(self.embeddings)
         self.embedding_dim = self.embeddings.shape[1]
         
-        # Add normalized title/artist for matching
-        self.metadata['norm_title'] = self.metadata['title'].str.lower().str.strip()
-        self.metadata['norm_artist'] = self.metadata['artist'].str.lower().str.strip()
-        
-        logger.info(f"Loaded {len(self.metadata)} total songs with {self.embedding_dim}D embeddings")
-    
+        logger.info(f"Loaded {len(self.embeddings)} embeddings with {self.embedding_dim}D")
+
     def _build_faiss_index(self):
-        """Build FAISS index for fast similarity search"""
-        logger.info("Building FAISS index...")
+        """Build FAISS index mapping to actual BigQuery song IDs."""
+        logger.info("Building FAISS index with ID mapping...")
         
         # Use IndexFlatIP for inner product (cosine similarity with normalized vectors)
-        self.faiss_index = faiss.IndexFlatIP(self.embedding_dim)
+        index = faiss.IndexFlatIP(self.embedding_dim)
         
-        # Add all embeddings to the index
-        self.faiss_index.add(self.embeddings)
+        # Create a map from the index's sequential IDs to our BigQuery song IDs
+        self.faiss_index = faiss.IndexIDMap(index)
+        
+        # Add all embeddings to the index with their corresponding song IDs
+        self.faiss_index.add_with_ids(self.embeddings, self.song_ids)
         
         logger.info(f"✅ FAISS index built with {self.faiss_index.ntotal} vectors")
     
@@ -192,21 +209,29 @@ class DataManager:
     def _search_all(self, query_embedding: np.ndarray, top_k: int) -> List[Dict]:
         """Search across all songs using FAISS"""
         # Search with FAISS (returns more than top_k for reranking)
-        search_k = min(top_k * 3, len(self.metadata))  # Get more candidates for reranking
-        scores, indices = self.faiss_index.search(query_embedding.reshape(1, -1), search_k)
+        search_k = min(top_k * 3, self.faiss_index.ntotal)
+        scores, ids = self.faiss_index.search(query_embedding.reshape(1, -1), search_k)
         
         # Flatten results
         scores = scores[0]
-        indices = indices[0]
+        ids = ids[0]
         
         # Apply views-based reranking
-        return self._rerank_with_views(scores, indices, top_k)
+        return self._rerank_with_views(scores, ids, top_k)
     
     def _search_within_candidates(self, query_embedding: np.ndarray, top_k: int, candidates: pd.DataFrame) -> List[Dict]:
         """Search within specific candidate songs"""
-        # Get indices of candidate songs
-        candidate_indices = candidates['global_index'].values
+        # Get BigQuery IDs of candidate songs
+        candidate_ids = candidates['id'].values
         
+        # We need to map these IDs to their positions in the self.embeddings array
+        # This requires a lookup. Let's create a map from ID to index.
+        id_to_idx_map = {id_val: i for i, id_val in enumerate(self.song_ids)}
+        candidate_indices = [id_to_idx_map[id_val] for id_val in candidate_ids if id_val in id_to_idx_map]
+        
+        if not candidate_indices:
+            return []
+            
         # Get embeddings for candidates
         candidate_embeddings = self.embeddings[candidate_indices]
         
@@ -214,23 +239,33 @@ class DataManager:
         similarities = np.dot(candidate_embeddings, query_embedding)
         
         # Get top candidates
-        top_indices = np.argsort(-similarities)[:top_k * 2]  # Get more for reranking
+        top_local_indices = np.argsort(-similarities)[:top_k * 2]  # Get more for reranking
         
-        # Map back to global indices
-        global_indices = candidate_indices[top_indices]
-        scores = similarities[top_indices]
+        # Map back to BigQuery song IDs
+        top_song_ids = np.array(candidate_ids)[top_local_indices]
+        scores = similarities[top_local_indices]
         
-        return self._rerank_with_views(scores, global_indices, top_k)
+        return self._rerank_with_views(scores, top_song_ids, top_k)
     
-    def _rerank_with_views(self, scores: np.ndarray, indices: np.ndarray, top_k: int) -> List[Dict]:
+    def _rerank_with_views(self, scores: np.ndarray, ids: np.ndarray, top_k: int) -> List[Dict]:
         """Apply views-based reranking to search results"""
-        results = []
+        # Filter out invalid IDs (-1 is used by FAISS for no result)
+        valid_ids = [int(id_val) for id_val in ids if id_val != -1]
+        if not valid_ids:
+            return []
         
-        for score, idx in zip(scores, indices):
-            if idx >= len(self.metadata):  # Safety check
+        # Fetch metadata for the top candidates from BigQuery
+        metadata_df = self._get_metadata_for_ids(valid_ids)
+        
+        if metadata_df.empty:
+            return []
+
+        results = []
+        for score, id_val in zip(scores, valid_ids):
+            if id_val not in metadata_df.index:
                 continue
                 
-            row = self.metadata.iloc[idx]
+            row = metadata_df.loc[id_val]
             
             # Skip songs with missing title or artist
             if pd.isna(row['title']) or pd.isna(row['artist']):
@@ -253,7 +288,8 @@ class DataManager:
                 'artist': row['artist'],
                 'views': float(views),
                 'raw_score': float(score),
-                'views_multiplier': float(views_multiplier)
+                'views_multiplier': float(views_multiplier),
+                'id': int(id_val) # Include the song ID
             })
         
         # Sort by final score and return top_k
@@ -261,31 +297,51 @@ class DataManager:
         return results[:top_k]
     
     def find_songs_in_dataset(self, spotify_songs: List[dict]) -> pd.DataFrame:
-        """Find Spotify songs in the dataset"""
+        """Find Spotify songs in the dataset by querying BigQuery directly."""
         if not spotify_songs:
             return pd.DataFrame()
         
         # Extract normalized titles and artists from Spotify songs
-        titles = [(s.get('name') or "").lower().strip() for s in spotify_songs]
-        artists = []
+        conditions = []
+        params = []
         for s in spotify_songs:
-            artist_name = ""
-            if s.get('artists') and s['artists']:
-                first_artist = s['artists'][0]
-                if first_artist and first_artist.get('name'):
-                    artist_name = first_artist['name'].lower().strip()
-            artists.append(artist_name)
+            title = (s.get('name') or "").lower().strip()
+            artist = ""
+            if s.get('artists') and s['artists'] and s['artists'][0] and s['artists'][0].get('name'):
+                artist = s['artists'][0]['name'].lower().strip()
+            
+            if title and artist:
+                conditions.append("(LOWER(TRIM(title)) = ? AND LOWER(TRIM(artist)) = ?)")
+                params.extend([title, artist])
+
+        if not conditions:
+            return pd.DataFrame()
         
-        spotify_df = pd.DataFrame({'norm_title': titles, 'norm_artist': artists})
-        spotify_df.drop_duplicates(inplace=True)
-        
-        # Find matches in our dataset
-        found_df = pd.merge(self.metadata, spotify_df, on=['norm_title', 'norm_artist'], how='inner')
-        return found_df
+        try:
+            client = bigquery.Client()
+            query = f"""
+                SELECT id, title, artist 
+                FROM `lyric_data.other_columns_merged`
+                WHERE {' OR '.join(conditions)}
+            """
+            # Define query parameters to prevent SQL injection
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter(None, "STRING", p) for p in params
+                ]
+            )
+            
+            query_job = client.query(query, job_config=job_config)
+            found_df = query_job.to_dataframe()
+            return found_df
+
+        except Exception as e:
+            logger.error(f"Failed to find songs in BigQuery: {e}")
+            return pd.DataFrame() # Return empty on error
     
     def get_total_songs(self) -> int:
-        """Get total number of songs in the dataset"""
-        return len(self.metadata) if self.metadata is not None else 0
+        """Get total number of songs from the FAISS index"""
+        return self.faiss_index.ntotal if self.faiss_index else 0
 
 # Global instance (will be initialized on server startup)
 data_manager: Optional[DataManager] = None
@@ -297,9 +353,9 @@ def get_data_manager() -> DataManager:
         raise RuntimeError("DataManager not initialized. Call initialize_data_manager() first.")
     return data_manager
 
-def initialize_data_manager(data_dir: Optional[str] = None) -> DataManager:
+def initialize_data_manager() -> DataManager:
     """Initialize the global data manager"""
     global data_manager
     if data_manager is None:
-        data_manager = DataManager(data_dir)
+        data_manager = DataManager()
     return data_manager

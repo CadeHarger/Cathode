@@ -3,16 +3,15 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
-import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from api_hybrid_agent import run_hybrid_search_api
-from vector_search import VectorSearcher
 from data_manager import initialize_data_manager, get_data_manager
+from paths import data_files_present, describe_missing_data, list_missing_chunks, list_present_chunks, format_chunk_status
 
 # Job status enum
 class JobStatus(str, Enum):
@@ -62,8 +61,13 @@ async def lifespan(app: FastAPI):
     print("🔍 Building FAISS index for fast vector search...")
     
     try:
+        if not data_files_present():
+            raise FileNotFoundError(describe_missing_data())
         initialize_data_manager()
         data_manager = get_data_manager()
+        missing = list_missing_chunks()
+        if missing:
+            print(f"⚠️  Partial dataset: {format_chunk_status()}")
         print(f"✅ Startup complete! Ready to serve {data_manager.get_total_songs():,} songs")
     except Exception as e:
         print(f"❌ Failed to initialize data manager: {e}")
@@ -117,7 +121,7 @@ async def process_playlist_creation(job_id: str, prompt: str, genres: List[str])
         search_result = await run_hybrid_search_api(
             user_experience=prompt,
             genres=genres,
-            top_k=8,
+            top_k=25,
             progress_callback=progress_callback
         )
         
@@ -141,7 +145,7 @@ async def process_playlist_creation(job_id: str, prompt: str, genres: List[str])
             "status": JobStatus.COMPLETED,
             "progress": 100,
             "message": "Playlist created successfully!",
-            "result": result.dict(),
+            "result": result.model_dump(),
             "updated_at": datetime.now()
         })
         
@@ -165,7 +169,7 @@ async def process_playlist_creation(job_id: str, prompt: str, genres: List[str])
             del active_tasks[job_id]
 
 @app.post("/api/playlist", response_model=CreateJobResponse)
-async def create_playlist(request: PlaylistRequest, background_tasks: BackgroundTasks):
+async def create_playlist(request: PlaylistRequest):
     """Start playlist creation job"""
     job_id = str(uuid.uuid4())
     
@@ -186,7 +190,7 @@ async def create_playlist(request: PlaylistRequest, background_tasks: Background
         "error": None,
         "created_at": datetime.now(),
         "updated_at": datetime.now(),
-        "request": request.dict()
+        "request": request.model_dump()
     }
     
     # Create and store the background task for cancellation
@@ -272,12 +276,33 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Simple health check endpoint"""
+    """Health check with data load status."""
+    data_loaded = False
+    song_count = 0
+    loaded_chunks: List[int] = []
+    missing_chunks = list_missing_chunks() if data_files_present() else [1, 2, 3, 4]
+
+    try:
+        if data_files_present():
+            data_manager = get_data_manager()
+            data_loaded = True
+            song_count = data_manager.get_total_songs()
+            loaded_chunks = data_manager.loaded_chunks
+            missing_chunks = data_manager.missing_chunks
+    except Exception:
+        if data_files_present():
+            loaded_chunks = list_present_chunks()
+            missing_chunks = list_missing_chunks()
+
     return {
-        "status": "healthy",
+        "status": "healthy" if data_loaded else "degraded",
         "service": "Cathode Playlist API",
         "version": "1.0.0",
-        "timestamp": datetime.now().isoformat()
+        "data_loaded": data_loaded,
+        "song_count": song_count,
+        "loaded_chunks": loaded_chunks,
+        "missing_chunks": missing_chunks,
+        "timestamp": datetime.now().isoformat(),
     }
 
 if __name__ == "__main__":
